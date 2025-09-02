@@ -1,0 +1,28 @@
+# MLOps & Experiment Tracking
+mlflow>=1.28.0,<2.0.0
+python-dotenv
+
+# Core ML & Data Science
+tensorflow>=2.9.0
+numpy
+pandas
+scikit-learn
+Pillow  # For image manipulation
+
+# Data Versioning & Ingestion
+dvc[s3] # Use [s3], [gcs], [azure], or [ssh] based on your remote storage, or just 'dvc' for local
+kaggle  # For downloading the dataset
+
+# Model Deployment (API)
+fastapi
+uvicorn[standard] # ASGI server to run FastAPI
+mtcnn           # A popular and easy-to-use library for face detection
+
+# Utilities & Notebook
+notebook        # For running Jupyter notebooks in the 'research' folder
+PyYAML          # For reading YAML configuration files
+python-box      # For dot-notation access to dictionaries (easydict is an alternative)
+matplotlib
+seaborn         # For visualizations and plotting the confusion matrix
+tqdm            # For progress bars during training/data processing
+ensure         # For type checking and assertions
