@@ -1,9 +1,8 @@
-# MLOps & Experiment Tracking
 mlflow>=1.28.0,<2.0.0
 python-dotenv
 
 # Core ML & Data Science
-tensorflow>=2.9.0
+tensorflow==2.10.0  # <--- THIS IS THE CRITICAL CHANGE
 numpy
 pandas
 scikit-learn
@@ -26,3 +25,4 @@ matplotlib
 seaborn         # For visualizations and plotting the confusion matrix
 tqdm            # For progress bars during training/data processing
 ensure         # For type checking and assertions
+-e .

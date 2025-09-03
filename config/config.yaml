@@ -8,16 +8,24 @@ data_ingestion:
 
 data_validation:
   root_dir: artifacts/data_validation
+  unzip_data_dir: artifacts/data_ingestion/EmotionRecognition  # The directory to check
   status_file: artifacts/data_validation/status.txt
 
 data_preprocessing:
   root_dir: artifacts/data_preprocessing
-  train_data_path: artifacts/data_preprocessing/train_processed
-  test_data_path: artifacts/data_preprocessing/test_processed
+  train_data_dir: artifacts/data_ingestion/EmotionRecognition/train
+  test_data_dir: artifacts/data_ingestion/EmotionRecognition/test
+  # Paths to save the final processed TensorFlow datasets
+  train_dataset_path: artifacts/data_preprocessing/train_dataset
+  test_dataset_path: artifacts/data_preprocessing/test_dataset
+
+# Update this section in your config/config.yaml
 
 model_trainer:
   root_dir: artifacts/training
-  trained_model_path: artifacts/training/model.h5
+  train_data_dir: artifacts/data_ingestion/EmotionRecognition/train
+  test_data_dir: artifacts/data_ingestion/EmotionRecognition/test
+  trained_model_path: artifacts/training/model.weights.h5
 
 model_evaluation:
   root_dir: artifacts/evaluation
