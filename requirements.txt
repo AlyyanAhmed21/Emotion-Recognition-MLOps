@@ -16,6 +16,8 @@ kaggle  # For downloading the dataset
 fastapi
 uvicorn[standard] # ASGI server to run FastAPI
 mtcnn           # A popular and easy-to-use library for face detection
+websockets  # Correct library for websockets with FastAPI
+python-multipart   # For handling file uploads from forms
 
 # Utilities & Notebook
 notebook        # For running Jupyter notebooks in the 'research' folder
