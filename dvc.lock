@@ -22,63 +22,75 @@ stages:
       md5: 86e6a2f694c57a675b3e2da6b95ff9ba
       size: 23
   data_preparation:
-    cmd: python src/EmotionRecognition/pipeline/stage_03_data_preparation.py
+    cmd: python src/EmotionRecognition/pipeline/stage_01_data_preparation.py
     deps:
-    - path: artifacts/data_ingestion
+    - path: data/raw/CK+48
       hash: md5
-      md5: 9208f64defb6697b78bab62e943d955d.dir
-      size: 302675528
-      nfiles: 2
+      md5: a1559eddfd0d86b541e5df18b4b8205e.dir
+      size: 1715162
+      nfiles: 981
+    - path: data/raw/fer2013.csv
+      hash: md5
+      md5: f8428a1edbd21e88f42c73edd2a14f95
+      size: 301072766
+    - path: data/raw/fer2013new.csv
+      hash: md5
+      md5: 413eba86d6e454536b99705b8c7fc5c5
+      size: 1602762
+    - path: src/EmotionRecognition/components/data_preparation.py
+      hash: md5
+      md5: 228140227aaedb9f07b4c00462f267c6
+      size: 5776
     - path: src/EmotionRecognition/config/configuration.py
       hash: md5
-      md5: dacf4230e18681185b786aa280cdec5e
-      size: 4275
-    - path: src/EmotionRecognition/pipeline/stage_03_data_preparation.py
+      md5: 8786c8d41e2e50a49b4ca6d5bf59ad44
+      size: 2910
+    - path: src/EmotionRecognition/pipeline/stage_01_data_preparation.py
       hash: md5
-      md5: b7a0ef478975a804e219f0cb09db29a2
-      size: 1052
+      md5: 1a324b8f1cf01e4e60e0a8529b23b577
+      size: 1110
     params:
       params.yaml:
         DATA_PARAMS.CLASSES:
-        - anger
+        - angry
         - disgust
         - fear
-        - happiness
+        - happy
         - neutral
-        - sadness
+        - sad
         - surprise
     outs:
     - path: artifacts/data_preparation/test
       hash: md5
-      md5: 5e1a5a6a1c38c440820fee0327dd2aa3.dir
-      size: 6252184
-      nfiles: 3564
+      md5: 79c105a50ccbe2557fea9fab2c743fa5.dir
+      size: 6249935
+      nfiles: 3589
     - path: artifacts/data_preparation/train
       hash: md5
-      md5: 9e440d3b92e122cbb873185408e14037.dir
-      size: 49964858
-      nfiles: 28542
+      md5: 750c0a305d28467341396ab591ed2731.dir
+      size: 51232879
+      nfiles: 29471
   model_training:
-    cmd: python src/EmotionRecognition/pipeline/stage_04_model_training.py
+    cmd: python src/EmotionRecognition/pipeline/stage_02_model_training.py
     deps:
     - path: artifacts/data_preparation/test
       hash: md5
-      md5: 5e1a5a6a1c38c440820fee0327dd2aa3.dir
-      size: 6252184
-      nfiles: 3564
+      md5: 79c105a50ccbe2557fea9fab2c743fa5.dir
+      size: 6249935
+      nfiles: 3589
     - path: artifacts/data_preparation/train
       hash: md5
-      md5: 9e440d3b92e122cbb873185408e14037.dir
-      size: 49964858
-      nfiles: 28542
-    - path: src/EmotionRecognition/config/configuration.py
+      md5: 750c0a305d28467341396ab591ed2731.dir
+      size: 51232879
+      nfiles: 29471
+    - path: src/EmotionRecognition/components/model_trainer.py
       hash: md5
-      md5: dacf4230e18681185b786aa280cdec5e
-      size: 4275
-    - path: src/EmotionRecognition/pipeline/stage_04_model_training.py
+      md5: 5192acef195c9a9b03a88490476ead1c
+      size: 3916
+    - path: src/EmotionRecognition/pipeline/stage_02_model_training.py
       hash: md5
-      md5: 96d163755d5b0f2d3741d17be502b44e
-      size: 1081
+      md5: 2ee36d6e30a3a262e8327a26e71a37e9
+      size: 1076
     params:
       params.yaml:
         DATA_PARAMS:
@@ -88,25 +100,17 @@ stages:
           CHANNELS: 3
           BATCH_SIZE: 32
           CLASSES:
-          - anger
+          - angry
           - disgust
           - fear
-          - happiness
+          - happy
           - neutral
-          - sadness
+          - sad
           - surprise
           NUM_CLASSES: 7
-          CLASS_WEIGHTS:
-            0: 1.5
-            1: 6.0
-            2: 1.5
-            3: 0.5
-            4: 1.0
-            5: 1.0
-            6: 1.5
         TRAINING_PARAMS:
-          EPOCHS: 100
-          LEARNING_RATE: 0.001
+          EPOCHS: 50
+          LEARNING_RATE: 0.0001
           OPTIMIZER: Adam
           LOSS_FUNCTION: CategoricalCrossentropy
           METRICS:
@@ -115,38 +119,85 @@ stages:
     outs:
     - path: artifacts/training/model.keras
       hash: md5
-      md5: 357769c0e18a2248b269b7846b9a2e52
+      md5: 2c632cb4cbf3f2944145a8da1927f2cf
       size: 11331400
   model_evaluation:
-    cmd: python src/EmotionRecognition/pipeline/stage_05_model_evaluation.py
+    cmd: python src/EmotionRecognition/pipeline/stage_03_model_evaluation.py
     deps:
     - path: artifacts/data_preparation/test
       hash: md5
-      md5: 5e1a5a6a1c38c440820fee0327dd2aa3.dir
-      size: 6252184
-      nfiles: 3564
+      md5: 79c105a50ccbe2557fea9fab2c743fa5.dir
+      size: 6249935
+      nfiles: 3589
     - path: artifacts/training/model.keras
       hash: md5
-      md5: 357769c0e18a2248b269b7846b9a2e52
+      md5: 2c632cb4cbf3f2944145a8da1927f2cf
       size: 11331400
-    - path: src/EmotionRecognition/config/configuration.py
+    - path: src/EmotionRecognition/components/model_evaluation.py
       hash: md5
-      md5: dacf4230e18681185b786aa280cdec5e
-      size: 4275
-    - path: src/EmotionRecognition/pipeline/stage_05_model_evaluation.py
-      hash: md5
-      md5: 2ee207129b9af21cd3b311d31aadb4c1
-      size: 1110
+      md5: 8b327667db406dd7c6489937747b8537
+      size: 2429
     params:
       params.yaml:
-        DATA_PARAMS.CHANNELS: 3
-        DATA_PARAMS.IMAGE_SIZE:
-        - 224
-        - 224
-        DATA_PARAMS.NUM_CLASSES: 7
-        TRAINING_PARAMS.DROPOUT_RATE: 0.5
+        DATA_PARAMS:
+          IMAGE_SIZE:
+          - 224
+          - 224
+          CHANNELS: 3
+          BATCH_SIZE: 32
+          CLASSES:
+          - angry
+          - disgust
+          - fear
+          - happy
+          - neutral
+          - sad
+          - surprise
+          NUM_CLASSES: 7
     outs:
     - path: artifacts/evaluation/metrics.json
       hash: md5
-      md5: 700882a95fa2240679428172c487282c
-      size: 74
+      md5: 3e8f938b34095f56c597110c5d86064e
+      size: 72
+  data_preprocessing:
+    cmd: python src/EmotionRecognition/pipeline/stage_02_data_preprocessing.py
+    deps:
+    - path: artifacts/data_preparation/test
+      hash: md5
+      md5: 79c105a50ccbe2557fea9fab2c743fa5.dir
+      size: 6249935
+      nfiles: 3589
+    - path: artifacts/data_preparation/train
+      hash: md5
+      md5: 750c0a305d28467341396ab591ed2731.dir
+      size: 51232879
+      nfiles: 29471
+    - path: src/EmotionRecognition/components/data_preprocessing.py
+      hash: md5
+      md5: bc85964fdf86afb289051c2498037eb8
+      size: 3903
+    - path: src/EmotionRecognition/pipeline/stage_02_data_preprocessing.py
+      hash: md5
+      md5: 5631296a6b7bace5c2f6979eda5ca081
+      size: 971
+    params:
+      params.yaml:
+        DATA_PARAMS.CLASSES:
+        - angry
+        - disgust
+        - fear
+        - happy
+        - neutral
+        - sad
+        - surprise
+    outs:
+    - path: artifacts/data_preprocessing/test
+      hash: md5
+      md5: 79c105a50ccbe2557fea9fab2c743fa5.dir
+      size: 6249935
+      nfiles: 3589
+    - path: artifacts/data_preprocessing/train
+      hash: md5
+      md5: 3dc8382a4774d1a1f1d1e5dfe3ca4c1b.dir
+      size: 18389122
+      nfiles: 10500

@@ -1,37 +1,25 @@
 artifacts_root: artifacts
 
-data_validation:
-  root_dir: artifacts/data_validation
-  status_file: artifacts/data_validation/status.txt
-  required_files: 
-    - artifacts/data_ingestion/fer2013.csv
-    - artifacts/data_ingestion/fer2013new.csv
-
-data_validation:
-  root_dir: artifacts/data_validation
-  status_file: artifacts/data_validation/status.txt
-  required_files: 
-    - artifacts/data_ingestion/fer2013.csv
-    - artifacts/data_ingestion/fer2013new.csv
-
-data_preparation:
+data_preparation: # This is our Stage 1
   root_dir: artifacts/data_preparation
-  pixels_csv_path: artifacts/data_ingestion/fer2013.csv
-  labels_csv_path: artifacts/data_ingestion/fer2013new.csv
-  prepared_train_dir: artifacts/data_preparation/train
-  prepared_test_dir: artifacts/data_preparation/test
+  # Inputs from raw data
+  ferplus_pixels_csv: data/raw/fer2013.csv
+  ferplus_labels_csv: data/raw/fer2013new.csv
+  ckplus_dir: data/raw/CK+48
+  # Outputs
+  combined_train_dir: artifacts/data_preparation/train
+  ferplus_test_dir: artifacts/data_preparation/test
 
 model_trainer:
   root_dir: artifacts/training
+  # The trainer now takes its input directly from the preparation stage
   train_data_dir: artifacts/data_preparation/train
   test_data_dir: artifacts/data_preparation/test
   trained_model_path: artifacts/training/model.keras
 
-# Add this section to your config/config.yaml
-
 model_evaluation:
   root_dir: artifacts/evaluation
-  trained_model_weights_path: artifacts/training/model.keras
   test_data_dir: artifacts/data_preparation/test
+  trained_model_path: artifacts/training/model.keras
   metrics_file_name: artifacts/evaluation/metrics.json
   mlflow_uri: https://dagshub.com/AlyyanAhmed21/Emotion-Recognition-MLOps.mlflow # Example for DagsHub

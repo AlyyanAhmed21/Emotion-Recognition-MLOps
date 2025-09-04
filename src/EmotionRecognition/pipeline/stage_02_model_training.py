@@ -1,19 +1,18 @@
+# File: src/EmotionRecognition/pipeline/stage_02_model_training.py
+
 from EmotionRecognition.config.configuration import ConfigurationManager
-from EmotionRecognition.components.data_preprocessing import DataPreprocessing
+from EmotionRecognition.components.model_trainer import ModelTrainer
 from EmotionRecognition import logger
 
-STAGE_NAME = "Data Preprocessing Stage"
+STAGE_NAME = "Model Training Stage"
 
-class DataPreprocessingTrainingPipeline:
-    def __init__(self):
-        pass
-
+class ModelTrainingPipeline:
     def main(self):
         try:
             config_manager = ConfigurationManager()
-            data_preprocessing_config = config_manager.get_data_preprocessing_config()
-            data_preprocessing = DataPreprocessing(config=data_preprocessing_config, params=config_manager.params)
-            data_preprocessing.create_and_save_datasets()
+            model_trainer_config = config_manager.get_model_trainer_config()
+            model_trainer = ModelTrainer(config=model_trainer_config, params=config_manager.params)
+            model_trainer.build_and_train_model()
         except Exception as e:
             logger.exception(e)
             raise e
@@ -21,8 +20,8 @@ class DataPreprocessingTrainingPipeline:
 if __name__ == '__main__':
     try:
         logger.info(f">>>>>> Stage '{STAGE_NAME}' started <<<<<<")
-        obj = DataPreprocessingTrainingPipeline()
-        obj.main()
+        pipeline = ModelTrainingPipeline()
+        pipeline.main()
         logger.info(f">>>>>> Stage '{STAGE_NAME}' completed successfully <<<<<<\n\nx==========x")
     except Exception as e:
         logger.exception(e)

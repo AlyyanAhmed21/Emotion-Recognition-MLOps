@@ -1,9 +1,9 @@
 from EmotionRecognition import logger
 from EmotionRecognition.pipeline.stage_01_data_ingestion import DataIngestionTrainingPipeline
 from EmotionRecognition.pipeline.stage_02_data_validation import DataValidationTrainingPipeline
-from EmotionRecognition.pipeline.stage_03_data_preparation import DataPreparationPipeline
-from EmotionRecognition.pipeline.stage_04_model_training import ModelTrainingPipeline
-from EmotionRecognition.pipeline.stage_05_model_evaluation import ModelEvaluationPipeline 
+from EmotionRecognition.pipeline.stage_01_data_preparation import DataPreparationPipeline
+from EmotionRecognition.pipeline.stage_02_model_training import ModelTrainingPipeline
+from EmotionRecognition.pipeline.stage_03_model_evaluation import ModelEvaluationPipeline 
 
 # Data Ingestion Stage
 STAGE_NAME = "Data Ingestion Stage"

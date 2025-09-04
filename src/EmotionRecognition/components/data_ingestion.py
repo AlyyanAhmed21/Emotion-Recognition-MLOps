@@ -1,4 +1,4 @@
-# In src/EmotionRecognition/components/data_ingestion.py
+# File: src/EmotionRecognition/components/data_ingestion.py
 import os
 from EmotionRecognition import logger
 from EmotionRecognition.entity.config_entity import DataIngestionConfig
@@ -7,21 +7,21 @@ class DataIngestion:
     def __init__(self, config: DataIngestionConfig):
         self.config = config
 
-    def check_files_exist(self):
+    def validate_source_data(self):
         """
-        Checks if the required CSV files exist.
+        Validates the existence of all raw source data files and folders.
         """
-        logger.info("Checking for required data files...")
+        logger.info("Validating source data files and folders...")
         
-        pixels_path = self.config.pixels_csv_path
-        labels_path = self.config.labels_csv_path
+        all_paths = [
+            self.config.root_dir,
+            self.config.ferplus_pixels_csv,
+            self.config.ferplus_labels_csv,
+            self.config.ckplus_dir
+        ]
 
-        if not os.path.exists(pixels_path):
-            logger.error(f"Pixel data file not found at: {pixels_path}")
-            raise FileNotFoundError(f"Pixel data file not found at: {pixels_path}. Please download fer2013.csv.")
-        
-        if not os.path.exists(labels_path):
-            logger.error(f"Label data file not found at: {labels_path}")
-            raise FileNotFoundError(f"Label data file not found at: {labels_path}. Please download fer2013new.csv.")
+        for path in all_paths:
+            if not os.path.exists(path):
+                raise FileNotFoundError(f"Missing required raw data source: {path}")
 
-        logger.info("All required data files found.")
+        logger.info("All raw data sources found successfully.")

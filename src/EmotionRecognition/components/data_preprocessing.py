@@ -1,4 +1,9 @@
-import tensorflow as tf
+# File: src/EmotionRecognition/components/data_preprocessing.py
+import os
+import shutil
+import random
+import glob
+from tqdm import tqdm
 from EmotionRecognition import logger
 from EmotionRecognition.entity.config_entity import DataPreprocessingConfig
 from pathlib import Path
@@ -6,68 +11,76 @@ from pathlib import Path
 class DataPreprocessing:
     def __init__(self, config: DataPreprocessingConfig, params: dict):
         self.config = config
-        self.params = params.DATA_PARAMS # Access the DATA_PARAMS sub-dictionary
+        self.params = params.DATA_PARAMS
 
-    def _build_data_pipeline(self, data_dir: Path, augment: bool):
-        """Builds a tf.data pipeline for either training or testing."""
+    def _log_and_get_stats(self, directory):
+        """Helper to get and log image counts for a directory."""
+        stats = {}
+        logger.info(f"Statistics for directory: {directory}")
+        for emotion in sorted(self.params.CLASSES):
+            path = Path(directory) / emotion
+            count = len(glob.glob(str(path / '*.png')))
+            stats[emotion] = count
+            logger.info(f"- {emotion}: {count} images")
+        return stats
+
+    def balance_dataset(self):
+        """
+        Applies a hybrid oversampling and undersampling strategy to balance the training data.
+        """
+        logger.info("--- Starting Hybrid Data Balancing Stage ---")
         
-        # 1. Create a dataset from the directory
-        dataset = tf.keras.utils.image_dataset_from_directory(
-            data_dir,
-            labels='inferred',
-            label_mode='categorical',
-            image_size=self.params.IMAGE_SIZE,
-            interpolation='nearest',
-            batch_size=self.params.BATCH_SIZE,
-            shuffle=True,
-            color_mode='grayscale'
-        )
+        logger.info("Source Training Set Distribution:")
+        self._log_and_get_stats(self.config.source_train_dir)
+        
+        if os.path.exists(self.config.balanced_train_dir): shutil.rmtree(self.config.balanced_train_dir)
+        os.makedirs(self.config.balanced_train_dir, exist_ok=True)
 
-        # 2. Define preprocessing steps
-        def preprocess(image, label):
-            # Convert grayscale to RGB
-            image = tf.image.grayscale_to_rgb(image)
+        target_count = self.config.target_samples_per_class
+        logger.info(f"\nBalancing all training classes to {target_count} samples each...")
+
+        for emotion in tqdm(self.params.CLASSES, desc="Balancing Classes"):
+            source_emotion_dir = Path(self.config.source_train_dir) / emotion
+            dest_emotion_dir = Path(self.config.balanced_train_dir) / emotion
+            dest_emotion_dir.mkdir(parents=True, exist_ok=True)
             
-            # --- THIS IS THE FIX ---
-            # Cast image to float32 before division
-            image = tf.cast(image, tf.float32) 
+            image_files = os.listdir(source_emotion_dir)
             
-            # Normalize pixel values to [0, 1]
-            image = image / 255.0
-            return image, label
+            if not image_files:
+                logger.warning(f"No images found for class '{emotion}'. Skipping.")
+                continue
 
-        # 3. Define data augmentation steps (only for training)
-        data_augmentation = tf.keras.Sequential([
-            tf.keras.layers.RandomFlip("horizontal"),
-            tf.keras.layers.RandomRotation(0.1),
-            tf.keras.layers.RandomZoom(0.1),
-        ])
+            current_count = len(image_files)
 
-        # 4. Apply preprocessing and augmentation
-        dataset = dataset.map(preprocess, num_parallel_calls=tf.data.AUTOTUNE)
+            if current_count > target_count:
+                # Undersampling: Randomly select 'target_count' unique images
+                selected_files = random.sample(image_files, target_count)
+            else:
+                # Oversampling: Select with replacement to reach 'target_count'
+                selected_files = random.choices(image_files, k=target_count)
 
-        if augment:
-            dataset = dataset.map(lambda x, y: (data_augmentation(x, training=True), y), 
-                                  num_parallel_calls=tf.data.AUTOTUNE)
+            # --- THIS IS THE BUG FIX ---
+            # Copy the selected files, giving duplicates new names.
+            for i, filename in enumerate(selected_files):
+                # Get the original file's extension
+                base_name, extension = os.path.splitext(filename)
+                
+                # If oversampling, create a unique name for each copy to prevent overwriting
+                if current_count < target_count:
+                    dest_filename = f"{base_name}_copy{i}{extension}"
+                else:
+                    dest_filename = filename # For undersampling, names are already unique
 
-        # 5. Prefetch for performance
-        return dataset.prefetch(buffer_size=tf.data.AUTOTUNE)
+                shutil.copy(source_emotion_dir / filename, dest_emotion_dir / dest_filename)
+            # --- END BUG FIX ---
 
-
-    def create_and_save_datasets(self):
-        """Creates and saves the training and testing datasets."""
+        # Copy the test set without changes
+        logger.info("\nCopying test set...")
+        if os.path.exists(self.config.balanced_test_dir): shutil.rmtree(self.config.balanced_test_dir)
+        shutil.copytree(self.config.source_test_dir, self.config.balanced_test_dir)
         
-        logger.info("Starting data preprocessing for the training set...")
-        train_dataset = self._build_data_pipeline(self.config.train_data_dir, augment=True)
-        
-        logger.info("Starting data preprocessing for the test set...")
-        test_dataset = self._build_data_pipeline(self.config.test_data_dir, augment=False)
-        
-        # Save the datasets
-        logger.info(f"Saving training dataset to: {self.config.train_dataset_path}")
-        tf.data.experimental.save(train_dataset, str(self.config.train_dataset_path))
-        
-        logger.info(f"Saving test dataset to: {self.config.test_dataset_path}")
-        tf.data.experimental.save(test_dataset, str(self.config.test_dataset_path))
-        
-        logger.info("Data preprocessing and saving complete.")
+        logger.info("\n--- Final Balanced Dataset Statistics ---")
+        self._log_and_get_stats(self.config.balanced_train_dir)
+        self._log_and_get_stats(self.config.balanced_test_dir)
+
+        logger.info("--- Data Balancing Stage Complete ---")

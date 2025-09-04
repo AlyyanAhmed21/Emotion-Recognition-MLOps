@@ -1,68 +1,118 @@
+# File: src/EmotionRecognition/components/data_preparation.py
 import os
 import pandas as pd
 import numpy as np
 from PIL import Image
 from tqdm import tqdm
+import shutil
 from EmotionRecognition import logger
 from EmotionRecognition.entity.config_entity import DataPreparationConfig
+from pathlib import Path
+import glob
 
 class DataPreparation:
     def __init__(self, config: DataPreparationConfig, params: dict):
         self.config = config
         self.params = params.DATA_PARAMS
 
-    def prepare_data_folders(self):
-        logger.info("Loading pixel data from fer2013.csv...")
-        pixels_df = pd.read_csv(self.config.pixels_csv_path)
+    def _process_and_save(self, best_emotion_name, usage, index, pixels, dataset_prefix):
+        """Helper function to handle the merging logic and save images."""
         
-        logger.info("Loading new labels from fer2013new.csv...")
-        labels_df = pd.read_csv(self.config.labels_csv_path)
+        # --- MERGING LOGIC ---
+        # If the emotion is 'contempt', we re-label it as 'disgust'.
+        if best_emotion_name == 'contempt':
+            final_emotion_name = 'disgust'
+        else:
+            final_emotion_name = best_emotion_name
+        # --- END MERGING LOGIC ---
+            
+        # Check if this emotion is one of our final target classes
+        if final_emotion_name in self.params.CLASSES:
+            if usage == 'Training':
+                output_dir = self.config.combined_train_dir
+            elif usage == 'PublicTest':
+                output_dir = self.config.ferplus_test_dir
+            else:
+                return # Skip other usages like PrivateTest
 
-        # The FER+ emotion labels order in the CSV columns
-        # These are the columns we will use to find the max vote
+            image = Image.fromarray(pixels)
+            emotion_folder = Path(output_dir) / final_emotion_name
+            emotion_folder.mkdir(parents=True, exist_ok=True)
+            image.save(emotion_folder / f"{dataset_prefix}_{index}.png")
+
+    def _prepare_ferplus(self):
+        logger.info("Starting preparation of FER+ dataset...")
+        pixels_df = pd.read_csv(self.config.ferplus_pixels_csv)
+        labels_df = pd.read_csv(self.config.ferplus_labels_csv)
+        
         ferplus_emotion_columns = ['neutral', 'happiness', 'surprise', 'sadness', 'anger', 'disgust', 'fear', 'contempt']
         
-        # Get our desired classes directly from params.yaml
-        our_classes = self.params.CLASSES
-
-        logger.info("Preparing and saving images to structured folders. This will take a while...")
-        
-        # Create output directories
-        os.makedirs(self.config.prepared_train_dir, exist_ok=True)
-        os.makedirs(self.config.prepared_test_dir, exist_ok=True)
-
-        # Iterate through each row of the dataset
-        for index, row in tqdm(pixels_df.iterrows(), total=len(pixels_df), desc="Processing Images"):
-            # Get the new label votes for the current image from the relevant columns
+        for index, row in tqdm(pixels_df.iterrows(), total=len(pixels_df), desc="Processing FER+ Images"):
             label_votes = labels_df.iloc[index][ferplus_emotion_columns].values
+            source_emotion_name = ferplus_emotion_columns[np.argmax(label_votes)]
+
+            # --- STANDARDIZE THE NAME ---
+            # Default to the source name
+            our_emotion_name = source_emotion_name
+            if source_emotion_name == 'happiness': our_emotion_name = 'happy'
+            if source_emotion_name == 'sadness': our_emotion_name = 'sad'
+            if source_emotion_name == 'anger': our_emotion_name = 'angry'
+            if source_emotion_name == 'contempt': our_emotion_name = 'disgust' # MERGE
             
-            # Find the emotion with the most votes
-            # This gives the name of the column with the highest vote, e.g., 'happiness'
-            best_emotion_name = ferplus_emotion_columns[np.argmax(label_votes)]
-            
-            # If the best label is one of our target classes
-            if best_emotion_name in our_classes:
-                emotion = best_emotion_name # The name is already correct
-                
-                # Determine if it's for training or testing
+            if our_emotion_name in self.params.CLASSES:
                 usage = row['Usage']
-                if usage == 'Training':
-                    output_dir = self.config.prepared_train_dir
-                elif usage == 'PublicTest': # PublicTest is our validation/test set
-                    output_dir = self.config.prepared_test_dir
-                else:
-                    continue # Skip PrivateTest for now
+                if usage == 'Training': output_dir = self.config.combined_train_dir
+                elif usage == 'PublicTest': output_dir = self.config.ferplus_test_dir
+                else: continue
 
-                # Convert pixel string to image
-                pixels = np.array(row['pixels'].split(), 'uint8')
-                image = pixels.reshape((48, 48))
-                pil_image = Image.fromarray(image)
-
-                # Create the emotion-specific subfolder and save the image
-                emotion_folder = os.path.join(output_dir, emotion)
-                os.makedirs(emotion_folder, exist_ok=True)
+                pixels = np.array(row['pixels'].split(), 'uint8').reshape((48, 48))
+                image = Image.fromarray(pixels)
+                emotion_folder = Path(output_dir) / our_emotion_name
+                emotion_folder.mkdir(parents=True, exist_ok=True)
+                image.save(emotion_folder / f"ferplus_{index}.png")
                 
-                image_filename = f"image_{index}.png"
-                pil_image.save(os.path.join(emotion_folder, image_filename))
+        logger.info("FER+ dataset preparation complete.")
 
-        logger.info("Data preparation complete. Image folders are ready.")
+    def _prepare_ckplus(self):
+        logger.info("Starting preparation of CK+ dataset...")
+        
+        for ckplus_folder_name in tqdm(os.listdir(self.config.ckplus_dir), desc="Processing CK+ Folders"):
+            source_emotion_dir = Path(self.config.ckplus_dir) / ckplus_folder_name
+            
+            # --- STANDARDIZE THE NAME ---
+            our_emotion_name = ckplus_folder_name # Default
+            if ckplus_folder_name == 'contempt': our_emotion_name = 'disgust' # MERGE
+            
+            if our_emotion_name in self.params.CLASSES and source_emotion_dir.is_dir():
+                dest_emotion_dir = Path(self.config.combined_train_dir) / our_emotion_name
+                dest_emotion_dir.mkdir(parents=True, exist_ok=True)
+                
+                for img_file in os.listdir(source_emotion_dir):
+                    shutil.copy(source_emotion_dir / img_file, dest_emotion_dir / f"ckplus_{img_file}")
+        
+        logger.info("CK+ dataset preparation complete.")
+        
+    def _log_dataset_statistics(self):
+        logger.info("--- Final Dataset Statistics ---")
+        logger.info("Training Set:")
+        for emotion in sorted(self.params.CLASSES):
+            count = len(glob.glob(str(self.config.combined_train_dir / emotion / '*.png')))
+            logger.info(f"- {emotion}: {count} images")
+        
+        logger.info("\nTest Set:")
+        for emotion in sorted(self.params.CLASSES):
+            count = len(glob.glob(str(self.config.ferplus_test_dir / emotion / '*.png')))
+            logger.info(f"- {emotion}: {count} images")
+        logger.info("---------------------------------")
+
+    def combine_and_prepare_data(self):
+        logger.info("--- Starting Data Preparation Stage ---")
+        if os.path.exists(self.config.combined_train_dir): shutil.rmtree(self.config.combined_train_dir)
+        if os.path.exists(self.config.ferplus_test_dir): shutil.rmtree(self.config.ferplus_test_dir)
+        os.makedirs(self.config.combined_train_dir, exist_ok=True)
+        os.makedirs(self.config.ferplus_test_dir, exist_ok=True)
+        
+        self._prepare_ferplus()
+        self._prepare_ckplus()
+        self._log_dataset_statistics()
+        logger.info("--- Data Preparation Stage Complete ---")
