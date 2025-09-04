@@ -1,43 +1,29 @@
+# In src/EmotionRecognition/components/data_validation.py
 import os
 from EmotionRecognition import logger
 from EmotionRecognition.entity.config_entity import DataValidationConfig
-import pandas as pd # You might need to add pandas to requirements.txt
 
 class DataValidation:
-    def __init__(self, config: DataValidationConfig, params: dict):
+    def __init__(self, config: DataValidationConfig):
         self.config = config
-        self.params = params
 
-    def validate_all_directories_exist(self) -> bool:
+    def validate_all_files_exist(self) -> bool:
         try:
             validation_status = True
             
-            # The required classes from params.yaml
-            required_classes = self.params.DATA_PARAMS.CLASSES
-            
-            # The main directories to check
-            data_dirs_to_check = ['train', 'test']
-
-            for data_dir in data_dirs_to_check:
-                full_path = os.path.join(self.config.unzip_data_dir, data_dir)
-                if not os.path.isdir(full_path):
+            # Check for all required files
+            for required_file in self.config.required_files:
+                if not os.path.exists(required_file):
                     validation_status = False
-                    logger.error(f"Missing required directory: {full_path}")
-                else:
-                    # Check for all class subdirectories
-                    found_classes = os.listdir(full_path)
-                    for req_class in required_classes:
-                        if req_class not in found_classes:
-                            validation_status = False
-                            logger.error(f"Missing required class sub-directory '{req_class}' in {full_path}")
+                    logger.error(f"Missing required file: {required_file}")
 
             with open(self.config.status_file, 'w') as f:
                 f.write(f"Validation status: {validation_status}")
 
             if validation_status:
-                logger.info("Data validation successful. All required directories and sub-directories exist.")
+                logger.info("Data validation successful. All required files exist.")
             else:
-                logger.error("Data validation failed. Please check the logs for missing directories.")
+                logger.error("Data validation failed. Please check the logs for missing files.")
             
             return validation_status
 

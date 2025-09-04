@@ -1,13 +1,12 @@
-# Data Preprocessing Parameters
+
 DATA_PARAMS:
-  IMAGE_SIZE: [224, 224]       # Standard size for EfficientNet-B0 input
-  CHANNELS: 3                  # We will convert grayscale images to 3 channels (RGB)
-  BATCH_SIZE: 32               # Standard batch size
+  IMAGE_SIZE: [224, 224]
+  CHANNELS: 3
+  BATCH_SIZE: 32
   
-  # The 7 emotion classes based on your analysis
-  CLASSES: ['angry', 'disgust', 'fear', 'happy', 'neutral', 'sad', 'surprise']
+  # CRITICAL CHANGE: Update these names to match fer2013new.csv
+  CLASSES: ['anger', 'disgust', 'fear', 'happiness', 'neutral', 'sadness', 'surprise']
   NUM_CLASSES: 7
-  
   # Class Weights based on your analysis (Manually set to start)
   # This is CRITICAL for addressing the imbalance. 
   # We will calculate these more precisely in the preprocessing step, but use ratios for placeholders.
@@ -23,12 +22,12 @@ DATA_PARAMS:
 
 # Model Training Parameters (EfficientNet-B0)
 TRAINING_PARAMS:
-  EPOCHS: 20
-  LEARNING_RATE: 0.0001
+  EPOCHS: 100
+  LEARNING_RATE: 0.001 # 1e-4
   OPTIMIZER: Adam
   LOSS_FUNCTION: CategoricalCrossentropy
   METRICS: ['accuracy']
-  DROPOUT_RATE: 0.2          # Regularization
+  DROPOUT_RATE: 0.5
   
 # Model Evaluation Parameters
 EVALUATION_PARAMS:

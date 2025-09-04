@@ -104,3 +104,8 @@ desktop.ini
 *.tmp
 *.bak
 *.swp
+
+.env
+*.env
+secrets.yaml
+secrets.json

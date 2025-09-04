@@ -1,0 +1,50 @@
+stages:
+  data_validation:
+    cmd: python src/EmotionRecognition/pipeline/stage_02_data_validation.py
+    deps:
+      - src/EmotionRecognition/pipeline/stage_02_data_validation.py
+      - src/EmotionRecognition/config/configuration.py
+      - artifacts/data_ingestion # <-- Depends on the DVC-tracked folder
+    outs:
+      - artifacts/data_validation/status.txt
+
+  data_preparation:
+    cmd: python src/EmotionRecognition/pipeline/stage_03_data_preparation.py
+    deps:
+      - src/EmotionRecognition/pipeline/stage_03_data_preparation.py
+      - src/EmotionRecognition/config/configuration.py
+      - artifacts/data_ingestion # <-- Depends on the DVC-tracked folder
+    params:
+      - DATA_PARAMS.CLASSES
+    outs:
+      - artifacts/data_preparation/train
+      - artifacts/data_preparation/test
+
+  model_training:
+      cmd: python src/EmotionRecognition/pipeline/stage_04_model_training.py
+      deps:
+        - src/EmotionRecognition/pipeline/stage_04_model_training.py
+        - src/EmotionRecognition/config/configuration.py
+        - artifacts/data_preparation/train
+        - artifacts/data_preparation/test
+      params:
+        - DATA_PARAMS
+        - TRAINING_PARAMS
+      outs:
+        - artifacts/training/model.keras # <--- CORRECTED FILENAME
+
+  model_evaluation:
+    cmd: python src/EmotionRecognition/pipeline/stage_05_model_evaluation.py
+    deps:
+      - src/EmotionRecognition/pipeline/stage_05_model_evaluation.py
+      - src/EmotionRecognition/config/configuration.py
+      - artifacts/data_preparation/test
+      - artifacts/training/model.keras # <--- CORRECTED FILENAME
+    params:
+      - DATA_PARAMS.IMAGE_SIZE
+      - DATA_PARAMS.CHANNELS
+      - DATA_PARAMS.NUM_CLASSES
+      - TRAINING_PARAMS.DROPOUT_RATE
+    metrics:
+      - artifacts/evaluation/metrics.json:
+          cache: false

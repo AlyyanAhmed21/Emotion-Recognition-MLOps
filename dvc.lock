@@ -1,0 +1,152 @@
+schema: '2.0'
+stages:
+  data_validation:
+    cmd: python src/EmotionRecognition/pipeline/stage_02_data_validation.py
+    deps:
+    - path: artifacts/data_ingestion
+      hash: md5
+      md5: 9208f64defb6697b78bab62e943d955d.dir
+      size: 302675528
+      nfiles: 2
+    - path: src/EmotionRecognition/config/configuration.py
+      hash: md5
+      md5: dacf4230e18681185b786aa280cdec5e
+      size: 4275
+    - path: src/EmotionRecognition/pipeline/stage_02_data_validation.py
+      hash: md5
+      md5: 18a3d78c83dc5b278e14523077035e41
+      size: 1141
+    outs:
+    - path: artifacts/data_validation/status.txt
+      hash: md5
+      md5: 86e6a2f694c57a675b3e2da6b95ff9ba
+      size: 23
+  data_preparation:
+    cmd: python src/EmotionRecognition/pipeline/stage_03_data_preparation.py
+    deps:
+    - path: artifacts/data_ingestion
+      hash: md5
+      md5: 9208f64defb6697b78bab62e943d955d.dir
+      size: 302675528
+      nfiles: 2
+    - path: src/EmotionRecognition/config/configuration.py
+      hash: md5
+      md5: dacf4230e18681185b786aa280cdec5e
+      size: 4275
+    - path: src/EmotionRecognition/pipeline/stage_03_data_preparation.py
+      hash: md5
+      md5: b7a0ef478975a804e219f0cb09db29a2
+      size: 1052
+    params:
+      params.yaml:
+        DATA_PARAMS.CLASSES:
+        - anger
+        - disgust
+        - fear
+        - happiness
+        - neutral
+        - sadness
+        - surprise
+    outs:
+    - path: artifacts/data_preparation/test
+      hash: md5
+      md5: 5e1a5a6a1c38c440820fee0327dd2aa3.dir
+      size: 6252184
+      nfiles: 3564
+    - path: artifacts/data_preparation/train
+      hash: md5
+      md5: 9e440d3b92e122cbb873185408e14037.dir
+      size: 49964858
+      nfiles: 28542
+  model_training:
+    cmd: python src/EmotionRecognition/pipeline/stage_04_model_training.py
+    deps:
+    - path: artifacts/data_preparation/test
+      hash: md5
+      md5: 5e1a5a6a1c38c440820fee0327dd2aa3.dir
+      size: 6252184
+      nfiles: 3564
+    - path: artifacts/data_preparation/train
+      hash: md5
+      md5: 9e440d3b92e122cbb873185408e14037.dir
+      size: 49964858
+      nfiles: 28542
+    - path: src/EmotionRecognition/config/configuration.py
+      hash: md5
+      md5: dacf4230e18681185b786aa280cdec5e
+      size: 4275
+    - path: src/EmotionRecognition/pipeline/stage_04_model_training.py
+      hash: md5
+      md5: 96d163755d5b0f2d3741d17be502b44e
+      size: 1081
+    params:
+      params.yaml:
+        DATA_PARAMS:
+          IMAGE_SIZE:
+          - 224
+          - 224
+          CHANNELS: 3
+          BATCH_SIZE: 32
+          CLASSES:
+          - anger
+          - disgust
+          - fear
+          - happiness
+          - neutral
+          - sadness
+          - surprise
+          NUM_CLASSES: 7
+          CLASS_WEIGHTS:
+            0: 1.5
+            1: 6.0
+            2: 1.5
+            3: 0.5
+            4: 1.0
+            5: 1.0
+            6: 1.5
+        TRAINING_PARAMS:
+          EPOCHS: 100
+          LEARNING_RATE: 0.001
+          OPTIMIZER: Adam
+          LOSS_FUNCTION: CategoricalCrossentropy
+          METRICS:
+          - accuracy
+          DROPOUT_RATE: 0.5
+    outs:
+    - path: artifacts/training/model.keras
+      hash: md5
+      md5: 357769c0e18a2248b269b7846b9a2e52
+      size: 11331400
+  model_evaluation:
+    cmd: python src/EmotionRecognition/pipeline/stage_05_model_evaluation.py
+    deps:
+    - path: artifacts/data_preparation/test
+      hash: md5
+      md5: 5e1a5a6a1c38c440820fee0327dd2aa3.dir
+      size: 6252184
+      nfiles: 3564
+    - path: artifacts/training/model.keras
+      hash: md5
+      md5: 357769c0e18a2248b269b7846b9a2e52
+      size: 11331400
+    - path: src/EmotionRecognition/config/configuration.py
+      hash: md5
+      md5: dacf4230e18681185b786aa280cdec5e
+      size: 4275
+    - path: src/EmotionRecognition/pipeline/stage_05_model_evaluation.py
+      hash: md5
+      md5: 2ee207129b9af21cd3b311d31aadb4c1
+      size: 1110
+    params:
+      params.yaml:
+        DATA_PARAMS.CHANNELS: 3
+        DATA_PARAMS.IMAGE_SIZE:
+        - 224
+        - 224
+        DATA_PARAMS.NUM_CLASSES: 7
+        TRAINING_PARAMS.DROPOUT_RATE: 0.5
+    outs:
+    - path: artifacts/evaluation/metrics.json
+      hash: md5
+      md5: 700882a95fa2240679428172c487282c
+      size: 74

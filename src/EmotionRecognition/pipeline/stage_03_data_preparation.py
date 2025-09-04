@@ -1,21 +1,19 @@
-# In src/EmotionRecognition/pipeline/stage_01_data_ingestion.py
-
 from EmotionRecognition.config.configuration import ConfigurationManager
-from EmotionRecognition.components.data_ingestion import DataIngestion
+from EmotionRecognition.components.data_preparation import DataPreparation
 from EmotionRecognition import logger
 
-STAGE_NAME = "Data Ingestion Stage"
+STAGE_NAME = "Data Preparation Stage"
 
-class DataIngestionTrainingPipeline:
+class DataPreparationPipeline:
     def __init__(self):
         pass
 
     def main(self):
         try:
-            config = ConfigurationManager()
-            data_ingestion_config = config.get_data_ingestion_config()
-            data_ingestion = DataIngestion(config=data_ingestion_config)
-            data_ingestion.check_files_exist() # Call the new method
+            config_manager = ConfigurationManager()
+            data_prep_config = config_manager.get_data_preparation_config()
+            data_preparation = DataPreparation(config=data_prep_config, params=config_manager.params)
+            data_preparation.prepare_data_folders()
         except Exception as e:
             logger.exception(e)
             raise e
@@ -23,7 +21,7 @@ class DataIngestionTrainingPipeline:
 if __name__ == '__main__':
     try:
         logger.info(f">>>>>> Stage '{STAGE_NAME}' started <<<<<<")
-        obj = DataIngestionTrainingPipeline()
+        obj = DataPreparationPipeline()
         obj.main()
         logger.info(f">>>>>> Stage '{STAGE_NAME}' completed successfully <<<<<<\n\nx==========x")
     except Exception as e:

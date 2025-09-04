@@ -11,13 +11,14 @@ class DataValidationTrainingPipeline:
     def main(self):
         try:
             config_manager = ConfigurationManager()
-            # Pass the params to the component
             data_validation_config = config_manager.get_data_validation_config()
-            data_validation = DataValidation(config=data_validation_config, params=config_manager.params)
-            data_validation.validate_all_directories_exist()
+            # We don't need params for this simple check anymore
+            data_validation = DataValidation(config=data_validation_config) 
+            data_validation.validate_all_files_exist() # Call the new method
         except Exception as e:
             logger.exception(e)
             raise e
+# ...
 
 if __name__ == '__main__':
     try:
