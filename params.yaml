@@ -1,34 +1,16 @@
-
 DATA_PARAMS:
   IMAGE_SIZE: [224, 224]
   CHANNELS: 3
   BATCH_SIZE: 32
-  
-  # CRITICAL CHANGE: Update these names to match fer2013new.csv
-  CLASSES: ['anger', 'disgust', 'fear', 'happiness', 'neutral', 'sadness', 'surprise']
+  CLASSES: ['anger', 'contempt', 'disgust', 'fear', 'happy', 'sadness', 'surprise']
   NUM_CLASSES: 7
-  # Class Weights based on your analysis (Manually set to start)
-  # This is CRITICAL for addressing the imbalance. 
-  # We will calculate these more precisely in the preprocessing step, but use ratios for placeholders.
-  # (Disgust is the lowest, Happy is the highest)
-  CLASS_WEIGHTS:
-    0: 1.5   # Angry (slightly higher weight)
-    1: 6.0   # Disgust (HIGH weight to penalize errors heavily)
-    2: 1.5   # Fear (slightly higher weight)
-    3: 0.5   # Happy (LOW weight to de-emphasize this dominant class)
-    4: 1.0   # Neutral (Base weight)
-    5: 1.0   # Sad (Base weight)
-    6: 1.5   # Surprise (slightly higher weight)
+  VALIDATION_SPLIT: 0.2
 
-# Model Training Parameters (EfficientNet-B0)
+
 TRAINING_PARAMS:
-  EPOCHS: 100
-  LEARNING_RATE: 0.001 # 1e-4
+  EPOCHS: 50
+  LEARNING_RATE: 0.001 # A stable LR for training a simple head
   OPTIMIZER: Adam
   LOSS_FUNCTION: CategoricalCrossentropy
   METRICS: ['accuracy']
-  DROPOUT_RATE: 0.5
-  
-# Model Evaluation Parameters
-EVALUATION_PARAMS:
-  METRIC_THRESHOLD: 0.65     # Minimum overall accuracy required to register model
+  DROPOUT_RATE: 0.4

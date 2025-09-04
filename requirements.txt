@@ -15,8 +15,9 @@ kaggle  # For downloading the dataset
 # Model Deployment (API)
 fastapi
 uvicorn[standard] # ASGI server to run FastAPI
-mtcnn           # A popular and easy-to-use library for face detection
-
+gradio==3.50.2 # <--- LOCK THE VERSION
+opencv-python
+mtcnn
 # Utilities & Notebook
 notebook        # For running Jupyter notebooks in the 'research' folder
 PyYAML          # For reading YAML configuration files

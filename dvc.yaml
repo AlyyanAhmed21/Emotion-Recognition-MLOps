@@ -1,49 +1,45 @@
 stages:
+  data_ingestion:
+    cmd: python src/EmotionRecognition/pipeline/stage_01_data_ingestion.py
+    deps:
+      - src/EmotionRecognition/pipeline/stage_01_data_ingestion.py
+      - src/EmotionRecognition/components/data_ingestion.py
+      - src/EmotionRecognition/config/configuration.py # <--- A DEPENDENCY
+      - config/config.yaml
+    outs:
+      - artifacts/data_ingestion/CK+
+
   data_validation:
     cmd: python src/EmotionRecognition/pipeline/stage_02_data_validation.py
     deps:
       - src/EmotionRecognition/pipeline/stage_02_data_validation.py
-      - src/EmotionRecognition/config/configuration.py
-      - artifacts/data_ingestion # <-- Depends on the DVC-tracked folder
-    outs:
-      - artifacts/data_validation/status.txt
-
-  data_preparation:
-    cmd: python src/EmotionRecognition/pipeline/stage_03_data_preparation.py
-    deps:
-      - src/EmotionRecognition/pipeline/stage_03_data_preparation.py
-      - src/EmotionRecognition/config/configuration.py
-      - artifacts/data_ingestion # <-- Depends on the DVC-tracked folder
+      - src/EmotionRecognition/components/data_validation.py
+      - artifacts/data_ingestion/CK+
     params:
       - DATA_PARAMS.CLASSES
     outs:
-      - artifacts/data_preparation/train
-      - artifacts/data_preparation/test
+      - artifacts/data_validation/status.txt
 
   model_training:
-      cmd: python src/EmotionRecognition/pipeline/stage_04_model_training.py
-      deps:
-        - src/EmotionRecognition/pipeline/stage_04_model_training.py
-        - src/EmotionRecognition/config/configuration.py
-        - artifacts/data_preparation/train
-        - artifacts/data_preparation/test
-      params:
-        - DATA_PARAMS
-        - TRAINING_PARAMS
-      outs:
-        - artifacts/training/model.keras # <--- CORRECTED FILENAME
+    cmd: python src/EmotionRecognition/pipeline/stage_04_model_training.py
+    deps:
+      - src/EmotionRecognition/components/model_trainer.py
+      - src/EmotionRecognition/utils/common.py
+      - artifacts/data_ingestion/CK+
+    params:
+      - DATA_PARAMS
+      - TRAINING_PARAMS
+    outs:
+      - artifacts/training/model.keras
 
   model_evaluation:
     cmd: python src/EmotionRecognition/pipeline/stage_05_model_evaluation.py
     deps:
-      - src/EmotionRecognition/pipeline/stage_05_model_evaluation.py
-      - src/EmotionRecognition/config/configuration.py
-      - artifacts/data_preparation/test
-      - artifacts/training/model.keras # <--- CORRECTED FILENAME
+      - src/EmotionRecognition/components/model_evaluation.py
+      - artifacts/data_ingestion/CK+
+      - artifacts/training/model.keras
     params:
-      - DATA_PARAMS.IMAGE_SIZE
-      - DATA_PARAMS.CHANNELS
-      - DATA_PARAMS.NUM_CLASSES
+      - DATA_PARAMS
       - TRAINING_PARAMS.DROPOUT_RATE
     metrics:
       - artifacts/evaluation/metrics.json:
