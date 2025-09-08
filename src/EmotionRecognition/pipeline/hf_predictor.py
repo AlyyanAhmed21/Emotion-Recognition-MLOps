@@ -20,16 +20,21 @@ class HFPredictor:
         self.stable_prediction = "---"
         print("[PREDICTOR INFO] Predictor initialized successfully.")
 
+
     def process_frame(self, frame):
         """
-        Processes a single frame: detects faces, predicts emotions, and draws annotations.
-        This is the single source of truth for all prediction logic.
+        Processes a single frame: flips it for a mirror effect, detects faces, 
+        predicts emotions, and draws professional annotations.
         """
         if frame is None: return frame, {}
 
+        # --- MIRROR FIX: Flip the frame FIRST! ---
+        # This ensures detection and drawing happen in the same coordinate space the user sees.
+        frame = cv2.flip(frame, 1)
         annotated_frame = frame.copy()
-        all_probabilities = {} # To hold predictions for the last valid face
-
+        # --- END FIX ---
+        
+        all_probabilities = {}
         faces = self.face_detector.detect_faces(frame)
         
         for face in faces:
@@ -46,9 +51,9 @@ class HFPredictor:
                 probs = torch.nn.functional.softmax(logits, dim=-1)
                 predictions = probs[0].numpy()
                 pred_index = np.argmax(predictions)
-                confidence = predictions[pred_index]
-
+                
                 # Use temporal smoothing for the displayed label
+                confidence = predictions[pred_index]
                 if confidence > self.confidence_threshold:
                     self.recent_predictions.append(pred_index)
                 if self.recent_predictions:
@@ -63,11 +68,8 @@ class HFPredictor:
                 
                 (text_width, text_height), baseline = cv2.getTextSize(text, FONT, 0.8, 2)
                 
-                # Draw the filled rectangle background for the text
                 cv2.rectangle(annotated_frame, (x, y - text_height - baseline - 10), (x + text_width + 10, y), GREEN, cv2.FILLED)
-                # Draw the text on top
                 cv2.putText(annotated_frame, text, (x + 5, y - 5), FONT, 0.8, BLACK, 2)
-                # Draw a thicker bounding box
                 cv2.rectangle(annotated_frame, (x, y), (x+width, y+height), GREEN, 3)
                 
                 all_probabilities = {self.classes[i]: float(predictions[i]) for i in range(len(self.classes))}

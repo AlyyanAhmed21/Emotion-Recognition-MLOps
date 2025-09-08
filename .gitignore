@@ -109,3 +109,4 @@ desktop.ini
 *.env
 secrets.yaml
 secrets.json
+processed_video.mp4
