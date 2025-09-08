@@ -20,21 +20,16 @@ class HFPredictor:
         self.stable_prediction = "---"
         print("[PREDICTOR INFO] Predictor initialized successfully.")
 
-
     def process_frame(self, frame):
         """
-        Processes a single frame: flips it for a mirror effect, detects faces, 
-        predicts emotions, and draws professional annotations.
+        Processes a single frame: detects faces, predicts emotions, and draws professional annotations.
+        This is the single source of truth for all prediction logic.
         """
         if frame is None: return frame, {}
 
-        # --- MIRROR FIX: Flip the frame FIRST! ---
-        # This ensures detection and drawing happen in the same coordinate space the user sees.
-        frame = cv2.flip(frame, 1)
         annotated_frame = frame.copy()
-        # --- END FIX ---
-        
-        all_probabilities = {}
+        all_probabilities = {} # To hold predictions for the last valid face
+
         faces = self.face_detector.detect_faces(frame)
         
         for face in faces:
@@ -52,7 +47,7 @@ class HFPredictor:
                 predictions = probs[0].numpy()
                 pred_index = np.argmax(predictions)
                 
-                # Use temporal smoothing for the displayed label
+                # Use temporal smoothing for the displayed label on the bounding box
                 confidence = predictions[pred_index]
                 if confidence > self.confidence_threshold:
                     self.recent_predictions.append(pred_index)

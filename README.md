@@ -1,3 +1,14 @@
+---
+title: Facial Emotion Detector
+emoji: 🎭
+colorFrom: purple
+colorTo: indigo
+sdk: gradio
+sdk_version: "3.50.2"
+app_file: app.py
+pinned: false
+---
+
 # 🎭 End-to-End Facial Emotion Recognition
 
  <!-- Replace with a link to your final app screenshot -->
