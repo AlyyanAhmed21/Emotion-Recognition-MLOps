@@ -4,7 +4,7 @@
 
 This repository contains a complete, end-to-end MLOps pipeline and a production-ready web application for real-time facial emotion recognition. The project leverages a state-of-the-art Vision Transformer model and is deployed as a user-friendly Gradio application on Hugging Face Spaces.
 
-**Live Demo:** [🚀 Click here to try the application on Hugging Face Spaces!](https://huggingface.co/spaces/YOUR-USERNAME/YOUR-SPACE-NAME) <!-- Replace with your HF Space URL -->
+**Live Demo:** [🚀 Click here to try the application on Hugging Face Spaces!](https://huggingface.co/spaces/ALYYAN/Emotion-Recognition) <!-- Replace with your HF Space URL -->
 
 ---
 
