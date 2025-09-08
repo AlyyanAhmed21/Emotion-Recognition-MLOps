@@ -22,13 +22,13 @@ class HFPredictor:
 
     def process_frame(self, frame):
         """
-        Processes a single frame: detects faces, predicts emotions, and draws professional annotations.
-        This is the single source of truth for all prediction logic.
+        Processes a single frame. This function is now used for ALL predictions
+        (live, image, and video) to ensure consistency.
         """
         if frame is None: return frame, {}
 
         annotated_frame = frame.copy()
-        all_probabilities = {} # To hold predictions for the last valid face
+        all_probabilities = {}
 
         faces = self.face_detector.detect_faces(frame)
         
@@ -46,21 +46,30 @@ class HFPredictor:
                 probs = torch.nn.functional.softmax(logits, dim=-1)
                 predictions = probs[0].numpy()
                 pred_index = np.argmax(predictions)
-                
-                # Use temporal smoothing for the displayed label on the bounding box
                 confidence = predictions[pred_index]
-                if confidence > self.confidence_threshold:
-                    self.recent_predictions.append(pred_index)
-                if self.recent_predictions:
+
+                # --- THIS IS THE DEFINITIVE FIX ---
+                # For the bounding box text, we determine which label to show.
+                # For the live feed, we want smooth predictions. For static images, we want the direct one.
+                # A simple check on the deque can tell us if we are in a "live" context.
+                if len(self.recent_predictions) > 0:
+                    # If the deque has items, we are in a live stream, so use smoothing.
+                    if confidence > self.confidence_threshold:
+                        self.recent_predictions.append(pred_index)
                     most_common_pred = Counter(self.recent_predictions).most_common(1)[0][0]
-                    self.stable_prediction = self.classes[most_common_pred]
+                    display_emotion = self.classes[most_common_pred]
+                else:
+                    # If the deque is empty, it's a static image/video, so use the direct prediction.
+                    display_emotion = self.classes[pred_index]
                 
-                # --- PROFESSIONAL DRAWING LOGIC ---
-                GREEN = (0, 255, 0)
-                BLACK = (0, 0, 0)
-                FONT = cv2.FONT_HERSHEY_SIMPLEX
-                text = f"{self.stable_prediction} ({confidence*100:.1f}%)"
+                # Reset the deque for the next live session if this was a static call
+                if len(self.recent_predictions) == 0:
+                    self.recent_predictions.clear()
+
+                text = f"{display_emotion} ({confidence*100:.1f}%)"
+                # --- END FIX ---
                 
+                GREEN = (0, 255, 0); BLACK = (0, 0, 0); FONT = cv2.FONT_HERSHEY_SIMPLEX
                 (text_width, text_height), baseline = cv2.getTextSize(text, FONT, 0.8, 2)
                 
                 cv2.rectangle(annotated_frame, (x, y - text_height - baseline - 10), (x + text_width + 10, y), GREEN, cv2.FILLED)
