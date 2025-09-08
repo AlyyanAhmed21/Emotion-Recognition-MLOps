@@ -3,7 +3,7 @@
 # Ignore all data, models, and artifacts. These should be tracked by DVC.
 /artifacts/
 /data/
-
+/sota_model/
 # Ignore the DVC local cache. This is where the actual data files are stored.
 .dvc/cache
 

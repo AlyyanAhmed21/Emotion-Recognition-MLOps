@@ -7,6 +7,10 @@ numpy
 pandas
 scikit-learn
 Pillow  # For image manipulation
+transformers
+timm
+torch # Vision Transformers on the Hub often use PyTorch backend
+torchvision
 
 # Data Versioning & Ingestion
 dvc[s3] # Use [s3], [gcs], [azure], or [ssh] based on your remote storage, or just 'dvc' for local
