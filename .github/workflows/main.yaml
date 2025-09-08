@@ -1,0 +1,62 @@
+# File: .github/workflows/main.yaml
+
+name: CI-CD Pipeline for Emotion Detector Application
+
+# This workflow runs on any push to the 'main' branch
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest # Use a standard Linux runner
+
+    steps:
+      # Step 1: Check out the repository code, including Git LFS files
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      # Step 2: Set up Python environment
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      # Step 3: Cache and install Python dependencies
+      - name: Cache Pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      
+      # --- Continuous Integration (CI) ---
+      # Step 4: A fast, relevant test for the Gradio application.
+      # We will run the app in the background for a few seconds. If it crashes on startup
+      # (e.g., due to a missing import or a model loading error), this step will fail.
+      - name: Test Application Startup
+        run: |
+          # Run the app in the background (&)
+          python app.py &
+          # Wait for 15 seconds to see if it crashes
+          sleep 15
+          # Check if the process is still running. If not, the 'kill' command will fail,
+          # causing the CI step to fail.
+          kill $!
+
+      # --- Continuous Deployment (CD) ---
+      # Step 5: Push the code to Hugging Face Spaces.
+      # This step only runs if the 'Test Application Startup' step was successful.
+      - name: Deploy to Hugging Face Spaces
+        uses: huggingface/hub-auto-push@v1
+        with:
+          repo_id: "ALYYAN/Emotion-Recognition" # <-- Updated with your ID
+          repo_type: "space"
+          token: ${{ secrets.HF_TOKEN }}
+          commit_message: "Automated deployment from GitHub Actions"

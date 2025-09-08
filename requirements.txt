@@ -1,35 +1,44 @@
-mlflow>=1.28.0,<2.0.0
-python-dotenv
+# -----------------------------------------------------------
+# MLOps Pipeline & Data Versioning
+# -----------------------------------------------------------
+dvc[s3]               # For data versioning. Change [s3] to your remote type or remove.
+kaggle                # For downloading datasets from Kaggle.
 
-# Core ML & Data Science
-tensorflow==2.10.0  # <--- THIS IS THE CRITICAL CHANGE
-numpy
-pandas
-scikit-learn
-Pillow  # For image manipulation
-transformers
-timm
-torch # Vision Transformers on the Hub often use PyTorch backend
+
+# -----------------------------------------------------------
+# Core Machine Learning & Deep Learning
+# -----------------------------------------------------------
+# Using the stable TensorFlow 2.10 for GPU support on native Windows
+tensorflow==2.10.0
+scikit-learn          # For evaluation metrics.
+
+# Hugging Face SOTA Model Dependencies
+transformers          # For loading models and processors from the Hub.
+torch                 # PyTorch is a backend dependency for many HF vision models.
 torchvision
+timm                  # Another common dependency for HF vision transformers.
 
-# Data Versioning & Ingestion
-dvc[s3] # Use [s3], [gcs], [azure], or [ssh] based on your remote storage, or just 'dvc' for local
-kaggle  # For downloading the dataset
+# Computer Vision
+opencv-python         # For image/video processing and drawing.
+mtcnn                 # For fast and effective face detection.
+Pillow                # For basic image manipulation.
 
-# Model Deployment (API)
-fastapi
-uvicorn[standard] # ASGI server to run FastAPI
-mtcnn           # A popular and easy-to-use library for face detection
-websockets  # Correct library for websockets with FastAPI
-python-multipart   # For handling file uploads from forms
-opencv-python
 
-# Utilities & Notebook
-notebook        # For running Jupyter notebooks in the 'research' folder
-PyYAML          # For reading YAML configuration files
-python-box      # For dot-notation access to dictionaries (easydict is an alternative)
-matplotlib
-seaborn         # For visualizations and plotting the confusion matrix
-tqdm            # For progress bars during training/data processing
-ensure         # For type checking and assertions
--e .
+# -----------------------------------------------------------
+# Web Application & User Interface
+# -----------------------------------------------------------
+gradio==3.50.2        # Locked to a stable version for consistent UI behavior.
+
+
+# -----------------------------------------------------------
+# Utilities
+# -----------------------------------------------------------
+numpy
+pandas                # For data manipulation in the preparation stage.
+PyYAML                # For reading .yaml configuration files.
+python-box            # For dot-notation access to config dictionaries.
+tqdm                  # For progress bars in scripts.
+ensure                # For runtime type checking.
+matplotlib            # For plotting (useful in research).
+seaborn               # For advanced plotting (useful in research).
+notebook              # For running Jupyter notebooks.
