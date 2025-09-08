@@ -1,200 +1,176 @@
 import gradio as gr
 import os
 import cv2
-import numpy as np
-from PIL import Image
-from collections import deque, Counter
-from datetime import datetime
+import time
 
-# --- IMPORTANT: Ensure this import works ---
-# This assumes your 'hf_predictor.py' is at 'src/EmotionRecognition/pipeline/hf_predictor.py'
-from src.EmotionRecognition.pipeline.prediction import HFPredictor
+from src.EmotionRecognition.pipeline.hf_predictor import HFPredictor
 
-# --- INITIALIZE THE MODEL (ONLY ONCE ON STARTUP) ---
+# --- INITIALIZE THE MODEL ---
 print("[INFO] Initializing predictor...")
 try:
-    # This will load the SOTA model from your local 'sota_model' folder
     predictor = HFPredictor()
     print("[INFO] Predictor initialized successfully.")
 except Exception as e:
+    predictor = None
     print(f"[FATAL ERROR] Failed to initialize predictor: {e}")
-    # If the model fails to load, we can't run the app.
-    # We will raise the exception to stop the app from launching incorrectly.
-    raise e
 
 # --- UI CONTENT & STYLING ---
-# We can inject custom CSS to style the app
 CSS = """
-#col-container { max-width: 95%; margin: 0 auto; }
-#video-feed, #annotated-output, #video-output { min-height: 500px; border: 2px solid #555; border-radius: 12px; }
-#emotion-probs { min-height: 500px; }
-.gradio-container { background-color: #121212; }
+/* Animated Gradient Background */
+body {
+    background: linear-gradient(-45deg, #0b0f19, #131a2d, #2a2a72, #522a72);
+    background-size: 400% 400%;
+    animation: gradient 15s ease infinite;
+}
+@keyframes gradient { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+.gradio-container { max-width: 1320px !important; margin: auto !important; }
+#title { text-align: center; font-size: 3rem !important; font-weight: 700; color: #FFF; margin-bottom: 0.5rem; }
+#subtitle { text-align: center; color: #bebebe; margin-top: 0; margin-bottom: 40px; font-size: 1.2rem; font-weight: 300; }
+.gr-button { font-weight: bold !important; }
+#predictions-column { background-color: rgba(255, 255, 255, 0.05); border-radius: 12px; padding: 1.5rem; }
+#predictions-column > .gr-label { display: none; }
+.prediction-list { list-style-type: none; padding: 0; margin-top: 1rem; }
+.prediction-list li { display: flex; align-items: center; margin-bottom: 12px; font-size: 1.1rem; }
+.prediction-list .label { width: 100px; text-transform: capitalize; color: #e0e0e0; }
+.prediction-list .bar-container { flex-grow: 1; height: 24px; background-color: rgba(255,255,255,0.1); border-radius: 12px; margin: 0 15px; overflow: hidden; }
+.prediction-list .bar { height: 100%; background: linear-gradient(90deg, #8A2BE2, #C71585); border-radius: 12px; transition: width 0.1s linear; }
+.prediction-list .percent { width: 60px; text-align: right; font-weight: bold; color: #FFF; }
 footer { display: none !important; }
 """
 
-about_model_markdown = """
-## About This Model
-This application uses a state-of-the-art Vision Transformer model to perform real-time facial emotion recognition.
-### Model Architecture
-- **Base Model:** Swin Transformer (tiny)
-- **Model Name:** `PangPang/affectnet-swin-tiny-patch4-window7-224`
-- **Output:** 8 emotion classes, including Neutral and Contempt.
-### Dataset
-The model was pre-trained on **AffectNet**, the largest database of facial expressions "in the wild," containing over 400,000 manually annotated images. This allows it to generalize well to real-world, spontaneous expressions.
+ABOUT_MARKDOWN = """
+### Model: Swin Transformer (`PangPang/affectnet-swin-tiny-patch4-window7-224`)
+This application uses a state-of-the-art Vision Transformer model, pre-trained on the massive **AffectNet** dataset. This dataset contains over 400,000 "in the wild" images, allowing the model to generalize well to real-world, spontaneous expressions.
 """
 
-# --- PREDICTION LOGIC ---
-# We use a simple class to hold the state of the log to avoid global variables
-class AppState:
-    def __init__(self):
-        self.log_data = []
+# --- BACKEND LOGIC ---
 
-    def get_log(self):
-        return self.log_data
+def create_prediction_html(probabilities):
+    if not probabilities:
+        return "<div style='padding: 2rem; text-align: center; color: #999;'>Waiting for prediction...</div>"
+    html = "<ul class='prediction-list'>"
+    sorted_preds = sorted(probabilities.items(), key=lambda item: item[1], reverse=True)
+    for emotion, prob in sorted_preds:
+        html += f"""
+        <li>
+            <strong class='label'>{emotion}</strong>
+            <div class='bar-container'><div class='bar' style='width: {prob*100:.1f}%;'></div></div>
+            <span class='percent'>{(prob*100):.1f}%</span>
+        </li>
+        """
+    html += "</ul>"
+    return html
 
-    def update_log(self, new_prediction):
-        if not self.log_data or self.log_data[-1][1] != new_prediction:
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            self.log_data.insert(0, [timestamp, new_prediction]) # Insert at the top
-            if len(self.log_data) > 10: # Keep the log size manageable
-                self.log_data.pop()
+def live_detection_stream(stream_state):
+    """A generator function that runs the live feed loop. This is the definitive fix."""
+    if stream_state != "Start":
+        yield None, create_prediction_html({})
+        return
 
-app_state = AppState()
-
-def live_emotion_detection(frame):
-    """
-    Main function for the live feed. Receives a frame, returns annotated frame and predictions.
-    """
-    if frame is None:
-        return None, None
+    cap = cv2.VideoCapture(0)
+    if not cap.isOpened():
+        print("[ERROR] Cannot open webcam")
+        yield None, create_prediction_html({})
+        return
     
-    annotated_frame, probabilities, _ = predictor.predict_live(frame, []) # Pass empty log for this context
-    
-    if probabilities:
-      # Update the log with the stable prediction from the predictor instance
-      app_state.update_log(predictor.stable_prediction)
-    
-    # Mirror the final output for a natural feel for the user
-    annotated_frame = cv2.flip(annotated_frame, 1)
+    try:
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                time.sleep(0.01)
+                continue
+            
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            annotated_frame, probabilities = predictor.process_frame(frame_rgb)
+            
+            # This 'yield' is the key to streaming. It sends the data back to the UI.
+            yield annotated_frame, create_prediction_html(probabilities)
+    finally:
+        print("[INFO] Live feed stopped. Releasing webcam.")
+        cap.release()
 
-    return annotated_frame, probabilities
+def process_image(image):
+    if image is None: return None, create_prediction_html({})
+    annotated_frame, probabilities = predictor.process_frame(image)
+    return annotated_frame, create_prediction_html(probabilities)
 
-def image_emotion_detection(image):
-    """Function for the image upload tab."""
-    if image is None:
-        return None, None
-    annotated_frame, probabilities = predictor.predict_single_frame(image)
-    return annotated_frame, probabilities
-
-def video_emotion_detection(video_path, progress=gr.Progress()):
-    """Function for the video upload tab with progress bar."""
-    if video_path is None:
+def process_video(video_path, progress=gr.Progress(track_tqdm=True)):
+    if video_path is None: return None
+    try:
+        cap = cv2.VideoCapture(video_path)
+        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        output_path = "processed_video.mp4"
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+        for _ in progress.tqdm(range(frame_count), desc="Processing Video"):
+            ret, frame = cap.read()
+            if not ret: break
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            annotated_frame, _ = predictor.process_frame(frame_rgb)
+            if annotated_frame is not None:
+                out.write(cv2.cvtColor(annotated_frame, cv2.COLOR_RGB2BGR))
+        cap.release()
+        out.release()
+        return output_path
+    except Exception as e:
+        print(f"[ERROR] Video processing failed: {e}")
         return None
-    
-    cap = cv2.VideoCapture(video_path)
-    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    
-    output_path = "processed_video.mp4"
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
 
-    for _ in progress.tqdm(range(frame_count), desc="Processing Video"):
-        ret, frame = cap.read()
-        if not ret: break
-        
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        annotated_frame, _ = predictor.predict_single_frame(frame_rgb)
-        
-        if annotated_frame is not None:
-            out.write(cv2.cvtColor(annotated_frame, cv2.COLOR_RGB2BGR))
-    
-    cap.release()
-    out.release()
-    return output_path
-
-# --- GRADIO UI DEFINITION ---
-with gr.Blocks(css=CSS, theme=gr.themes.Soft(primary_hue="purple", secondary_hue="teal")) as demo:
-    gr.Markdown("# Live Facial Emotion Detector")
-    gr.Markdown("A real-time AI application powered by a Vision Transformer model.")
+# --- GRADIO UI ---
+with gr.Blocks(css=CSS, theme=gr.themes.Base()) as demo:
+    gr.Markdown("# Facial Emotion Detector", elem_id="title")
+    gr.Markdown("A real-time AI application powered by Vision Transformers", elem_id="subtitle")
 
     with gr.Tabs():
         with gr.TabItem("Live Detection"):
-            with gr.Row(elem_id="col-container"):
-                with gr.Column(scale=2):
-                    # For Gradio v3, gr.Image is the correct way for live streaming
-                    webcam_input = gr.Image(
-                        source="webcam", 
-                        streaming=True, 
-                        type="numpy",
-                        label="Webcam Feed",
-                        elem_id="video-feed"
-                    )
-                with gr.Column(scale=1):
-                    prediction_label = gr.Label(
-                        label="Emotion Probabilities", 
-                        num_top_classes=8,
-                        elem_id="emotion-probs"
-                    )
-                    # We can use a simple button to refresh the log
-                    log_output = gr.Dataframe(
-                        headers=["Timestamp", "Predicted Emotion"],
-                        datatype=["str", "str"], row_count=5, col_count=(2, "fixed"),
-                        label="Prediction Log"
-                    )
-        
+            with gr.Row(equal_height=True):
+                with gr.Column(scale=3):
+                    # For live feed, the input is the webcam, the output is this component
+                    live_output = gr.Image(label="Live Feed", interactive=False, height=550)
+                with gr.Column(scale=2, elem_id="predictions-column"):
+                    live_predictions = gr.HTML()
+            with gr.Row():
+                start_button = gr.Button("Start Webcam", variant="primary", scale=1)
+                stop_button = gr.Button("Stop Webcam", variant="secondary", scale=1)
+            
+            # Hidden state to control the loop. This is the correct way.
+            stream_state = gr.State("Stop")
+
         with gr.TabItem("Upload Image"):
-            with gr.Row(elem_id="col-container"):
-                with gr.Column(scale=2):
-                    image_input = gr.Image(type="numpy", label="Upload an Image")
-                with gr.Column(scale=1):
-                    image_prediction_label = gr.Label(label="Emotion Probabilities", num_top_classes=8)
-            image_button = gr.Button("Analyze Image")
+            with gr.Row(equal_height=True):
+                with gr.Column(scale=3):
+                    # Renamed for clarity
+                    img_upload_input = gr.Image(type="numpy", label="Upload an Image", height=550)
+                with gr.Column(scale=2, elem_id="predictions-column"):
+                    img_upload_predictions = gr.HTML()
+            img_upload_button = gr.Button("Analyze Image", variant="primary")
 
         with gr.TabItem("Upload Video"):
-            with gr.Row(elem_id="col-container"):
-                video_input = gr.Video(label="Upload a Video File")
-                video_output = gr.Video(label="Processed Video", elem_id="video-output")
-            video_button = gr.Button("Analyze Video")
-
+            with gr.Row(equal_height=True):
+                video_upload_input = gr.Video(label="Upload a Video File")
+                video_upload_output = gr.Video(label="Processed Video")
+            video_upload_button = gr.Button("Analyze Video", variant="primary")
+        
         with gr.TabItem("About"):
-            gr.Markdown(about_model_markdown)
+            gr.Markdown(ABOUT_MARKDOWN)
 
-    # --- LINKING COMPONENTS ---
+    # --- EVENT LISTENERS ---
     
-    # Live Feed Logic
-    # The 'stream' event links the webcam component to our prediction function
-    webcam_input.stream(
-        fn=live_emotion_detection,
-        inputs=[webcam_input],
-        outputs=[webcam_input, prediction_label],
-    )
+    # This is the definitive, robust way to handle a start/stop generator in Gradio
+    start_event = start_button.click(lambda: "Start", None, stream_state, queue=False)
+    live_stream = start_event.then(live_detection_stream, stream_state, [live_output, live_predictions])
     
-    # Logic to update the log. We can tie it to the stream event as well,
-    # but it can be slow. A manual refresh is often better.
-    # For now, let's just let the log update in the background.
-    # To see it, the user would have to switch tabs.
-    # A more advanced version could use a dummy textbox to trigger updates.
+    # Stop button's click event cancels the running live_stream event.
+    stop_button.click(fn=None, inputs=None, outputs=None, cancels=[live_stream])
 
-    # Image Upload Logic
-    image_button.click(
-        fn=image_emotion_detection,
-        inputs=[image_input],
-        outputs=[image_input, image_prediction_label]
-    )
-
-    # Video Upload Logic
-    video_button.click(
-        fn=video_emotion_detection,
-        inputs=[video_input],
-        outputs=[video_output]
-    )
+    img_upload_button.click(process_image, [img_upload_input], [img_upload_input, img_upload_predictions])
+    video_upload_button.click(process_video, [video_upload_input], [video_upload_output])
 
 # --- LAUNCH THE APP ---
-if predictor is not None:
-    # Enabling the queue is essential for progress bars and handling multiple users
-    demo.queue().launch(debug=True)
+if predictor:
+    demo.queue().launch(debug=True, share=True) # Share=True gives you a public link
 else:
-    print("\n[FATAL ERROR] Could not start the application because the model failed to initialize.")
+    print("\n[FATAL ERROR] Could not start the application.")
