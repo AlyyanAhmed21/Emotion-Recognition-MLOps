@@ -3,7 +3,6 @@ import os
 import cv2
 import time
 
-# Ensure the correct predictor class is imported
 from src.EmotionRecognition.pipeline.hf_predictor import HFPredictor
 
 # --- INITIALIZE THE MODEL ---
@@ -31,7 +30,7 @@ body {
 #subtitle { text-align: center; color: #bebebe; margin-top: 0; margin-bottom: 40px; font-size: 1.2rem; font-weight: 300; }
 .gr-button { font-weight: bold !important; }
 
-/* Main Content Card */
+/* Main Content Card "Glassmorphism" effect */
 #main-card {
     background: rgba(22, 22, 34, 0.65);
     border-radius: 16px;
@@ -42,35 +41,30 @@ body {
 }
 
 /* Prediction Bar Styling & Layout */
-#predictions-column { background-color: transparent !important; padding: 1.5rem; padding-top: 2.5rem; }
+#predictions-column { background-color: transparent !important; padding: 1.5rem; }
 #predictions-column > .gr-label { display: none; }
-.prediction-list { list-style-type: none; padding: 0; margin-top: 1rem; }
+.prediction-list { list-style-type: none; padding: 0; margin-top: 1.5rem; }
 .prediction-list li { display: flex; align-items: center; margin-bottom: 12px; font-size: 1.1rem; }
 .prediction-list .label { width: 100px; text-transform: capitalize; color: #e0e0e0; }
 .prediction-list .bar-container { flex-grow: 1; height: 24px; background-color: rgba(255,255,255,0.1); border-radius: 12px; margin: 0 15px; overflow: hidden; }
-.prediction-list .bar { height: 100%; background: linear-gradient(90deg, #8A2BE2, #C71585); border-radius: 12px; transition: width 0.1s linear; }
+.prediction-list .bar { height: 100%; background: linear-gradient(90deg, #8A2BE2, #C71585); border-radius: 12px; transition: width: 0.1s linear; }
 .prediction-list .percent { width: 60px; text-align: right; font-weight: bold; color: #FFF; }
 footer { display: none !important; }
 """
 
 ABOUT_MARKDOWN = """
-### Model: Vision Transformer (`PangPang/affectnet-swin-tiny-patch4-window7-224`)
-This application uses a state-of-the-art Vision Transformer model, pre-trained on the massive **AffectNet** dataset. This dataset contains over 400,000 "in the wild" images, allowing the model to generalize well to real-world, spontaneous expressions.
-
-### About This Project
-This application is the deployment artifact of a complete MLOps pipeline. The journey involved multiple iterations, including:
-- Training custom CNNs (`MobileNetV2`) on datasets like **CK+** and **FER+**.
-- Architecting a full-stack solution with **React** and **FastAPI**.
-- Implementing a reproducible training pipeline with **DVC**.
-- Automating deployment with a **CI/CD** workflow using **GitHub Actions**.
-
-This Gradio app represents the final, streamlined version for a high-performance user experience.
+### Model: Vision Transformer (ViT)
+This application uses a Vision Transformer model, fine-tuned for facial emotion recognition.
+### Dataset
+The model was fine-tuned on the **Emotion Recognition Dataset** from Kaggle, a large, curated collection of labeled facial images. This diverse dataset allows the model to generalize to a wide variety of real-world faces and expressions.
+*Dataset Link:* [https://www.kaggle.com/datasets/sujaykapadnis/emotion-recognition-dataset](https://www.kaggle.com/datasets/sujaykapadnis/emotion-recognition-dataset)
+### MLOps Pipeline
+This entire application, from data processing to training and deployment, was built using a reproducible MLOps pipeline, ensuring consistency and quality at every step.
 """
 
 # --- BACKEND LOGIC ---
 
 def create_prediction_html(probabilities):
-    """Generates clean HTML for the prediction bars."""
     if not probabilities:
         return "<div style='padding: 2rem; text-align: center; color: #999;'>Waiting for prediction...</div>"
     html = "<ul class='prediction-list'>"
@@ -91,7 +85,7 @@ def live_detection_stream(stream_state):
     if stream_state != "Start":
         # This function is called once with "Stop" to terminate the loop.
         print("[INFO] Stop signal received. Terminating live feed.")
-        yield (None, []), create_prediction_html({}) # Clear the UI
+        yield None, create_prediction_html({}) # Clear the UI
         return
 
     cap = cv2.VideoCapture(0)
@@ -108,27 +102,20 @@ def live_detection_stream(stream_state):
                 continue
             
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            # The predictor now returns raw data (boxes, labels), not a rendered image
-            annotations, probabilities = predictor.get_prediction_data(frame_rgb)
+            annotated_frame, probabilities = predictor.process_frame(frame_rgb)
             
-            # We send the ORIGINAL frame and the annotation data separately.
-            # Gradio's AnnotatedImage will handle the drawing on the frontend.
-            yield (frame_rgb, annotations), create_prediction_html(probabilities)
+            # This 'yield' is the key to streaming. It sends the data back to the UI.
+            yield annotated_frame, create_prediction_html(probabilities)
     finally:
-        print("[INFO] Live feed loop finished. Releasing webcam.")
+        print("[INFO] Live feed stopped. Releasing webcam.")
         cap.release()
 
 def process_image(image):
-    """Processes a static uploaded image."""
-    if image is None: 
-        return None, create_prediction_html({})
-    # Use the same efficient data-only function
-    annotations, probabilities = predictor.get_prediction_data(image)
-    # Return the original image and the annotation data for AnnotatedImage component
-    return (image, annotations), create_prediction_html(probabilities)
+    if image is None: return None, create_prediction_html({})
+    annotated_frame, probabilities = predictor.process_frame(image)
+    return annotated_frame, create_prediction_html(probabilities)
 
 def process_video(video_path, progress=gr.Progress(track_tqdm=True)):
-    """Processes an uploaded video file frame-by-frame."""
     if video_path is None: return None
     try:
         cap = cv2.VideoCapture(video_path)
@@ -143,8 +130,7 @@ def process_video(video_path, progress=gr.Progress(track_tqdm=True)):
             ret, frame = cap.read()
             if not ret: break
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            # Use the full process_frame method that does drawing for video files
-            annotated_frame, _ = predictor.process_frame_for_upload(frame_rgb) 
+            annotated_frame, _ = predictor.process_frame(frame_rgb)
             if annotated_frame is not None:
                 out.write(cv2.cvtColor(annotated_frame, cv2.COLOR_RGB2BGR))
         cap.release()
@@ -164,8 +150,7 @@ with gr.Blocks(css=CSS, theme=gr.themes.Base()) as demo:
             with gr.TabItem("Live Detection"):
                 with gr.Row(equal_height=True):
                     with gr.Column(scale=3):
-                        # Use gr.AnnotatedImage for efficient, frontend-rendered annotations
-                        live_output = gr.AnnotatedImage(label="Live Feed", height=550, mirror_webcam=True)
+                        live_output = gr.Image(label="Live Feed", interactive=False, height=550)
                     with gr.Column(scale=2, elem_id="predictions-column"):
                         gr.Markdown("### Emotion Probabilities")
                         live_predictions = gr.HTML()
@@ -179,33 +164,31 @@ with gr.Blocks(css=CSS, theme=gr.themes.Base()) as demo:
             with gr.TabItem("Upload Image"):
                 with gr.Row(equal_height=True):
                     with gr.Column(scale=3):
-                        image_input = gr.Image(type="numpy", label="Upload an Image", height=550)
-                        image_output = gr.AnnotatedImage(label="Result", height=550)
+                        img_upload_input = gr.Image(type="numpy", label="Upload an Image", height=550)
                     with gr.Column(scale=2, elem_id="predictions-column"):
-                        gr.Markdown("### Emotion Probabilities")
-                        image_predictions = gr.HTML()
-                image_button = gr.Button("Analyze Image", variant="primary")
+                        img_upload_predictions = gr.HTML()
+                img_upload_button = gr.Button("Analyze Image", variant="primary")
 
             with gr.TabItem("Upload Video"):
                 with gr.Row(equal_height=True):
-                    video_input = gr.Video(label="Upload a Video File")
-                    video_output = gr.Video(label="Processed Video")
-                video_button = gr.Button("Analyze Video", variant="primary")
+                    video_upload_input = gr.Video(label="Upload a Video File")
+                    video_upload_output = gr.Video(label="Processed Video")
+                video_upload_button = gr.Button("Analyze Video", variant="primary")
             
             with gr.TabItem("About"):
                 gr.Markdown(ABOUT_MARKDOWN)
 
     # --- EVENT LISTENERS ---
     
-    # This is the definitive, robust way to handle start/stop for a generator in Gradio
+    # This is the definitive, robust way to handle a start/stop generator in Gradio
     start_event = start_button.click(lambda: "Start", None, stream_state, queue=False)
     live_stream = start_event.then(live_detection_stream, stream_state, [live_output, live_predictions])
     
     # Stop button's click event cancels the running live_stream event.
     stop_button.click(fn=None, inputs=None, outputs=None, cancels=[live_stream])
 
-    image_button.click(process_image, [image_input], [image_output, image_predictions])
-    video_button.click(process_video, [video_input], [video_output])
+    img_upload_button.click(process_image, [img_upload_input], [img_upload_input, img_upload_predictions])
+    video_upload_button.click(process_video, [video_upload_input], [video_upload_output])
 
 # --- LAUNCH THE APP ---
 if predictor:

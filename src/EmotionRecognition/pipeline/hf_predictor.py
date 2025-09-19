@@ -5,7 +5,7 @@ import cv2
 from collections import deque, Counter
 from PIL import Image
 
-# --- THE NEW, PURE PYTORCH FACE DETECTOR ---
+# --- The correct, pure PyTorch face detector ---
 from facenet_pytorch import MTCNN
 
 LOCAL_MODEL_PATH = "sota_model"
@@ -16,12 +16,9 @@ class HFPredictor:
         self.processor = AutoImageProcessor.from_pretrained(LOCAL_MODEL_PATH)
         self.model = AutoModelForImageClassification.from_pretrained(LOCAL_MODEL_PATH)
         
-        # --- NEW: Initialize the PyTorch MTCNN ---
-        # It automatically detects and uses the GPU if available!
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.face_detector = MTCNN(keep_all=True, device=self.device)
         self.face_confidence_threshold = face_confidence_threshold
-        # --- END NEW ---
 
         self.classes = list(self.model.config.id2label.values())
         self.confidence_threshold = confidence_threshold
@@ -37,24 +34,25 @@ class HFPredictor:
 
     def process_frame(self, frame):
         """
-        Processes a single frame: detects high-confidence faces, predicts emotions, 
-        and draws professional annotations using the PyTorch stack.
+        Processes a single frame: detects faces, predicts emotions, and draws annotations.
         """
         if frame is None: return frame, {}
 
         annotated_frame = frame.copy()
         all_probabilities = {}
 
-        # The new detector is much faster. It takes a PIL image.
+        # The facenet-pytorch detector expects a PIL Image
         pil_frame = Image.fromarray(frame)
+        
+        # --- THIS IS THE FIX ---
+        # The method is called .detect(), not .detect_faces()
         boxes, probs = self.face_detector.detect(pil_frame)
+        # --- END FIX ---
 
-        # The detector returns None if no faces are found
         if boxes is not None:
-            # --- NEW: Process the new detector's output ---
             for box, prob in zip(boxes, probs):
                 if prob < self.face_confidence_threshold:
-                    continue # Skip low-confidence faces
+                    continue
 
                 x1, y1, x2, y2 = [int(coord) for coord in box]
                 width = x2 - x1
@@ -63,7 +61,6 @@ class HFPredictor:
                 if width <= 0 or height <= 0: continue
                 
                 face_roi = frame[y1:y2, x1:x2]
-            # --- END NEW ---
             
                 if face_roi.size > 0:
                     pil_image = Image.fromarray(face_roi)
