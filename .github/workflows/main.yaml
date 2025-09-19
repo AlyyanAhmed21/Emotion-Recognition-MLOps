@@ -1,61 +1,61 @@
 # File: .github/workflows/main.yaml
 
-name: CI-CD Pipeline for Emotion Detector Application
+#name: CI-CD Pipeline for Emotion Detector Application
 
-on:
-  push:
-    branches:
-      - main
+#on:
+#  push:
+#    branches:
+#      - main
 
-jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest
+#jobs:
+#  build-and-deploy:
+#    runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-        with:
-          lfs: true
+#    steps:
+#      - name: Checkout Repository
+#        uses: actions/checkout@v4
+#        with:
+#          lfs: true
           # We need to fetch the full history to push correctly
-          fetch-depth: 0
+#          fetch-depth: 0
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
+#      - name: Set up Python
+#        uses: actions/setup-python@v5
+#        with:
+#          python-version: '3.10'
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+#      - name: Install dependencies
+#        run: pip install -r requirements.txt
       
-      - name: Test Application Startup
-        run: |
-          python app.py &
-          sleep 15
-          kill $!
+#      - name: Test Application Startup
+#        run: |
+#          python app.py &
+#          sleep 15
+#          kill $!
 
       # --- THIS IS THE DEFINITIVE FIX ---
       # Step 5: Manually push the code to Hugging Face Spaces
-      - name: Deploy to Hugging Face Spaces
-        env:
+#      - name: Deploy to Hugging Face Spaces
+#        env:
           # Use the HF Token secret we created
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: |
-          # Clone the Hugging Face Space repository into a new folder
-          git clone https://user:${HF_TOKEN}@huggingface.co/spaces/ALYYAN/Emotion-Recognition huggingface-space
+#          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+#        run: |
+#          # Clone the Hugging Face Space repository into a new folder
+#          git clone https://user:${HF_TOKEN}@huggingface.co/spaces/ALYYAN/Emotion-Recognition huggingface-space
           
           # Copy all our application files into the cloned repository folder
           # The -a flag preserves file attributes. The '.' at the end is crucial.
-          rsync -av --delete --exclude='.git/' --exclude='.github/' ./ huggingface-space/
+#          rsync -av --delete --exclude='.git/' --exclude='.github/' ./ huggingface-space/
           
           # Go into the space's directory
-          cd huggingface-space
+ #         cd huggingface-space
           
           # Configure git user for the commit
-          git config --global user.email "action@github.com"
-          git config --global user.name "GitHub Action"
+ #         git config --global user.email "action@github.com"
+  #        git config --global user.name "GitHub Action"
           
           # Add, commit, and push the changes
-          git add .
+  #        git add .
           # Use --allow-empty in case there are no file changes but we still want to trigger a rebuild
-          git commit -m "Automated deployment from GitHub Actions" --allow-empty
-          git push
+ #         git commit -m "Automated deployment from GitHub Actions" --allow-empty
+ #         git push
