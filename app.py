@@ -7,7 +7,7 @@ import time
 from src.EmotionRecognition.pipeline.hf_predictor import HFPredictor
 
 # --- CONFIGURATION ---
-HOLD_TIME = 2.0  # (seconds) Update the panel at least this often.
+HOLD_TIME = 2.0  # (seconds)
 
 # --- INITIALIZE THE MODEL ---
 print("[INFO] Initializing predictor...")
@@ -40,7 +40,7 @@ body {
 #predictions-column > .gr-label { display: none; }
 .prediction-list { list-style-type: none; padding: 0; margin-top: 1.5rem; }
 .prediction-list li { display: flex; align-items: center; margin-bottom: 12px; font-size: 1.1rem; }
-.prediction-list .label { width: 100px; text-transform: capitalize; color: #e0e0e0; }
+.prediction-list .label { width: 100px; text-transform: capitalize; color: #e0e_0e0; }
 .prediction-list .bar-container { flex-grow: 1; height: 24px; background-color: rgba(255,255,255,0.1); border-radius: 12px; margin: 0 15px; overflow: hidden; }
 .prediction-list .percent { width: 60px; text-align: right; font-weight: bold; color: #FFF; }
 footer { display: none !important; }
@@ -56,7 +56,6 @@ This application is the culmination of a complete, end-to-end MLOps project, dem
 """
 
 # --- BACKEND LOGIC ---
-# (All backend functions are correct and remain unchanged)
 def create_static_html(probabilities):
     html = "<ul class='prediction-list'>"
     sorted_preds = sorted(probabilities.items(), key=lambda item: item[1], reverse=True)
@@ -71,13 +70,15 @@ def create_static_html(probabilities):
     return html
 
 def handle_static_image(frame):
-    annotated_frame, probabilities = predictor.predict_static(frame)
-    return annotated_frame, create_static_html(probabilities)
+    # For a static image, we just use the video frame logic once
+    annotated_frame = predictor.predict_video_frame(frame) 
+    # Since we don't have probabilities back from the tracker, we just show the annotated image
+    return annotated_frame, "<div style='padding: 2rem; text-align: center; color: #999;'>Analysis complete.</div>"
 
 def handle_stream(frame, state):
     current_time = time.time()
     if state['last_update'] == 0:
-        predictor.reset_smoother()
+        predictor.reset_tracker()
     annotated_frame, probabilities = predictor.predict_smoothed(frame)
     if not probabilities:
         return annotated_frame, gr.update(), state
@@ -92,35 +93,27 @@ def handle_stream(frame, state):
 
 def handle_video(video_path, progress=gr.Progress(track_tqdm=True)):
     if video_path is None: return None
-    # We don't need the smoother for videos, so the reset call is just for safety.
-    predictor.reset_smoother() 
+    predictor.reset_tracker()
     try:
         cap = cv2.VideoCapture(video_path)
-        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        output_path = "processed_video_accurate.mp4" # New name
+        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)); fps = cap.get(cv2.CAP_PROP_FPS)
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)); height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        output_path = "processed_video_stable_final.mp4"
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        fps = cap.get(cv2.CAP_PROP_FPS)
-        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
         for _ in progress.tqdm(range(frame_count), desc="Processing Video"):
             ret, frame = cap.read()
             if not ret: break
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            
-            # Use the static predictor for each frame to get individual emotions
-            annotated_frame, _ = predictor.predict_static(frame_rgb)
-            
+            annotated_frame = predictor.predict_video_frame(frame_rgb)
             if annotated_frame is not None:
                 out.write(cv2.cvtColor(annotated_frame, cv2.COLOR_RGB2BGR))
-        cap.release()
-        out.release()
+        cap.release(); out.release()
         return output_path
     except Exception as e:
         print(f"[ERROR] Video processing failed: {e}")
         return None
 
-# --- NEW: A dummy function to satisfy the Gradio backend ---
 def dummy_function(data):
     pass
 
@@ -142,12 +135,7 @@ with gr.Blocks(css=CSS, theme=gr.themes.Base()) as demo:
                         gr.Markdown("### Emotion Probabilities")
                         html_content = "<ul class='prediction-list'>"
                         for emotion in FIXED_EMOTION_ORDER:
-                            html_content += f"""
-                            <li>
-                                <strong class='label'>{emotion.capitalize()}</strong>
-                                <div class='bar-container'><div class='bar' id='bar-{emotion}'></div></div>
-                                <span class='percent' id='percent-{emotion}'>0.0%</span>
-                            </li>"""
+                            html_content += f"""<li><strong class='label'>{emotion.capitalize()}</strong><div class='bar-container'><div class='bar' id='bar-{emotion}'></div></div><span class='percent' id='percent-{emotion}'>0.0%</span></li>"""
                         html_content += "</ul>"
                         live_predictions = gr.HTML(html_content)
                         live_predictions_data = gr.JSON(visible=False)
@@ -169,12 +157,7 @@ with gr.Blocks(css=CSS, theme=gr.themes.Base()) as demo:
             with gr.TabItem("About"):
                 gr.Markdown(ABOUT_MARKDOWN)
 
-    # --- FIX: The JavaScript listener now has a dummy Python function ---
-    live_predictions_data.change(
-        fn=dummy_function, # Assign the dummy function here
-        inputs=live_predictions_data,
-        outputs=None, # Explicitly state there are no Python outputs
-        _js="""
+    live_predictions_data.change(fn=dummy_function, inputs=live_predictions_data, outputs=None, _js="""
         (data) => {
             if (!data) return;
             const sorted_preds = Object.entries(data).sort(([,a],[,b]) => b-a);
@@ -194,11 +177,8 @@ with gr.Blocks(css=CSS, theme=gr.themes.Base()) as demo:
                     percent.textContent = (prob * 100).toFixed(1) + '%';
                 }
             }
-        }
-        """
-    )
+        }""")
     
-    # Event Listeners (correctly reference the variables)
     live_feed.stream(fn=handle_stream, inputs=[live_feed, live_feed_state], outputs=[live_feed, live_predictions_data, live_feed_state])
     image_button.click(fn=handle_static_image, inputs=[image_input], outputs=[image_input, image_predictions])
     video_button.click(fn=handle_video, inputs=[video_input], outputs=[video_output])
