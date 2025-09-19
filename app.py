@@ -20,7 +20,7 @@ except Exception as e:
 
 # --- UI CONTENT & STYLING ---
 CSS = """
-/* Your existing CSS is perfect and remains unchanged */
+/* Your final, polished CSS */
 .prediction-list .bar {
     height: 100%;
     background: linear-gradient(90deg, #8A2BE2, #C71585);
@@ -40,7 +40,7 @@ body {
 #predictions-column > .gr-label { display: none; }
 .prediction-list { list-style-type: none; padding: 0; margin-top: 1.5rem; }
 .prediction-list li { display: flex; align-items: center; margin-bottom: 12px; font-size: 1.1rem; }
-.prediction-list .label { width: 100px; text-transform: capitalize; color: #e0e_0e0; }
+.prediction-list .label { width: 100px; text-transform: capitalize; color: #e0e0e0; }
 .prediction-list .bar-container { flex-grow: 1; height: 24px; background-color: rgba(255,255,255,0.1); border-radius: 12px; margin: 0 15px; overflow: hidden; }
 .prediction-list .percent { width: 60px; text-align: right; font-weight: bold; color: #FFF; }
 footer { display: none !important; }
@@ -48,15 +48,42 @@ footer { display: none !important; }
 
 ABOUT_MARKDOWN = """
 ## 🚀 About This Project
-This application is the culmination of a complete, end-to-end MLOps project, demonstrating the full lifecycle from research and experimentation to a final, deployed, state-of-the-art solution.
+
+This application demonstrates a complete, end-to-end MLOps workflow, resulting in a high-performance, real-time facial emotion recognition system. It leverages a state-of-the-art AI model and incorporates advanced techniques for a robust and polished user experience.
+
+**[View the Project on GitHub](https://github.com/your-username/your-repo-name)** <!--- IMPORTANT: REPLACE WITH YOUR GITHUB REPO LINK --->
+
 ---
-### 🛠️ Architecture & Tech Stack
-*   **Machine Learning & CV:** Python, PyTorch, Hugging Face `transformers`, facenet-pytorch, OpenCV
-*   **Application & UI:** Gradio
+
+### ✨ Key Technical Features
+
+*   **Real-Time GPU Performance:** The entire AI pipeline runs on the GPU with PyTorch (CUDA), enabling high-FPS analysis of the live webcam feed and rapid processing of videos.
+
+*   **Advanced Multi-Face Tracking & Stability:** For video analysis, an **IOU (Intersection-over-Union) tracker** maintains the identity of each person, while **temporal smoothing (hysteresis)** prevents distracting label flicker. Bounding boxes are stabilized with an **Exponential Moving Average (EMA)** for a smooth, cinematic feel.
+
+*   **Flicker-Free UI:** The prediction panel is updated using a custom JavaScript listener that animates changes smoothly in the browser, providing a seamless and professional user experience without any jarring flashes.
+
+*   **State-of-the-Art AI Model:** At its core is a **Swin Transformer**, a powerful Vision Transformer architecture, ensuring high accuracy on a wide range of facial expressions.
+
+---
+
+### 🛠️ Core Technologies
+
+*   **AI / Computer Vision:** PyTorch, Hugging Face Transformers, `facenet-pytorch`, OpenCV
+*   **Application & UI:** Gradio, JavaScript
+
+---
+
+### 👥 The Team
+
+*   **Alyyan Ahmed** - AI & MLOps Engineer
+*   **Munim Akbar** - AI & MLOps Engineer
 """
 
 # --- BACKEND LOGIC ---
 def create_static_html(probabilities):
+    if not probabilities:
+        return "<div style='padding: 2rem; text-align: center; color: #999;'>No face detected.</div>"
     html = "<ul class='prediction-list'>"
     sorted_preds = sorted(probabilities.items(), key=lambda item: item[1], reverse=True)
     for emotion, prob in sorted_preds:
@@ -69,11 +96,13 @@ def create_static_html(probabilities):
     html += "</ul>"
     return html
 
+# --- THIS IS THE FIX for the "Upload Image" tab ---
 def handle_static_image(frame):
-    # For a static image, we just use the video frame logic once
-    annotated_frame = predictor.predict_video_frame(frame) 
-    # Since we don't have probabilities back from the tracker, we just show the annotated image
-    return annotated_frame, "<div style='padding: 2rem; text-align: center; color: #999;'>Analysis complete.</div>"
+    predictor.reset_tracker()
+    # It must call the video_frame predictor to get multi-face results, but also need probabilities
+    # We create a temporary function for this single purpose
+    annotated_frame, probabilities = predictor.predict_static_with_probs(frame)
+    return annotated_frame, create_static_html(probabilities)
 
 def handle_stream(frame, state):
     current_time = time.time()
@@ -98,7 +127,7 @@ def handle_video(video_path, progress=gr.Progress(track_tqdm=True)):
         cap = cv2.VideoCapture(video_path)
         frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)); fps = cap.get(cv2.CAP_PROP_FPS)
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)); height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        output_path = "processed_video_stable_final.mp4"
+        output_path = "processed_video_final.mp4"
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
         for _ in progress.tqdm(range(frame_count), desc="Processing Video"):
@@ -117,7 +146,7 @@ def handle_video(video_path, progress=gr.Progress(track_tqdm=True)):
 def dummy_function(data):
     pass
 
-# --- GRADIO UI with JavaScript Injection ---
+# --- GRADIO UI ---
 with gr.Blocks(css=CSS, theme=gr.themes.Base()) as demo:
     live_feed_state = gr.State({'last_emotion': None, 'last_update': 0})
     FIXED_EMOTION_ORDER = ["happy", "sad", "angry", "surprise", "fear", "disgust", "neutral"]
