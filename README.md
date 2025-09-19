@@ -1,53 +1,59 @@
----
-title: Facial Emotion Detector
-emoji: 🎭
-colorFrom: purple
-colorTo: indigo
-sdk: gradio
-sdk_version: "3.50.2"
-app_file: app.py
-pinned: false
----
+# 🚀 Real-Time Emotion Recognition with Advanced Tracking & Smoothing
 
-# 🎭 End-to-End Facial Emotion Recognition
+[![Python Version](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/)
+[![PyTorch Version](https://img.shields.io/badge/PyTorch-2.5%2B%20(CUDA)-orange.svg)](https://pytorch.org/)
+[![Hugging Face Transformers](https://img.shields.io/badge/%F0%9F%A4%97%20Transformers-4.x-yellow.svg)](https://huggingface.co/transformers/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
- <!-- Replace with a link to your final app screenshot -->
-
-This repository contains a complete, end-to-end MLOps pipeline and a production-ready web application for real-time facial emotion recognition. The project leverages a state-of-the-art Vision Transformer model and is deployed as a user-friendly Gradio application on Hugging Face Spaces.
-
-**Live Demo:** [🚀 Click here to try the application on Hugging Face Spaces!](https://huggingface.co/spaces/ALYYAN/Emotion-Recognition) <!-- Replace with your HF Space URL -->
+An advanced, end-to-end computer vision application that performs real-time facial emotion recognition with state-of-the-art stability, tracking, and a polished user interface. This project moves beyond a simple prediction script to a robust, GPU-accelerated demo showcasing advanced techniques for a professional-grade user experience.
 
 ---
 
-## ✨ Features
+### 🌟 Live Demo
 
--   **Real-time Emotion Detection:** Analyzes your webcam feed to predict emotions in real-time.
--   **High Accuracy:** Powered by a pre-trained Swin Transformer model fine-tuned on the massive AffectNet dataset for superior performance on "in the wild" faces.
--   **Static Image & Video Analysis:** Upload your own images or videos for emotion prediction.
--   **Polished UI:** A professional and responsive user interface with an animated background, built with Gradio.
--   **Reproducible MLOps Pipeline:** The entire model training and data processing workflow is managed by DVC, ensuring 100% reproducibility.
--   **Containerized for Deployment:** The application is packaged with Docker for easy and consistent deployment anywhere.
+*(Strongly recommend you record a GIF of your app and replace this image!)*
 
-## 🛠️ Tech Stack
+*Live detection running smoothly with GPU acceleration, stabilized bounding boxes, and a flicker-free UI.*
 
--   **Model:** Swin Transformer (`PangPang/affectnet-swin-tiny-patch4-window7-224`)
--   **ML/Ops:** Python, TensorFlow/Keras, DVC, MLflow, Hugging Face `transformers`
--   **Backend & UI:** Gradio
--   **Face Detection:** MTCNN
--   **Deployment:** Hugging Face Spaces, Docker
+---
 
-## 🚀 Getting Started
+## ✨ Key Features & Technical Highlights
 
-Follow these steps to run the project locally.
+This project implements several advanced features to overcome common challenges in real-time computer vision:
 
-### Prerequisites
+#### 🚀 High-Performance GPU Acceleration
+*   The entire inference pipeline, from face detection (`facenet-pytorch`) to emotion classification (`Swin Transformer`), runs on the **GPU using PyTorch with CUDA**.
+*   This enables high-FPS, real-time processing of live webcam feeds and dramatically accelerates the analysis of pre-recorded videos.
 
--   Python 3.10+
--   Git and Git LFS ([installation guide](https://git-lfs.github.com))
--   An NVIDIA GPU with CUDA drivers is recommended for the training pipeline, but the deployed app runs on CPU.
+#### 🧠 Advanced Multi-Face Tracking & Stability
+*   **Temporal Emotion Smoothing (Hysteresis):** To prevent distracting, single-frame flickers, the system uses a confirmation-based approach. An emotion label for a person will not change unless the new emotion has been consistently detected for several consecutive frames, reflecting true emotional states.
+*   **Bounding Box Smoothing (EMA):** Bounding boxes are smoothed using an Exponential Moving Average (EMA). This eliminates the common "jitter" artifact, resulting in boxes that glide smoothly and track faces with a stable, cinematic feel.
+*   **Robust Identity Tracking (IOU):** An Intersection-over-Union (IOU) tracker is used in video processing to maintain the identity of each person from one frame to the next, ensuring that smoothing and hysteresis are applied correctly to each individual.
 
-### 1. Clone the Repository
+#### 🖥️ Polished & Flicker-Free User Interface
+*   The Gradio UI features a **100% flicker-free** prediction panel.
+*   Instead of re-rendering HTML, the Python backend sends raw probability data to a hidden JSON component. A custom **JavaScript listener** then smoothly animates the bar widths and re-orders the list in the browser, providing a seamless and professional user experience.
 
-```bash
-git clone https://github.com/YOUR-USERNAME/Emotion-Recognition-MLOps.git
-cd Emotion-Recognition-MLOps
+#### 🎯 High-Accuracy Detection
+*   **State-of-the-Art Model:** Utilizes a **Swin Transformer**, a powerful Vision Transformer architecture, for high-accuracy emotion classification.
+*   **Robust Face Detection:** Employs `facenet-pytorch` MTCNN for fast, GPU-accelerated face detection, with confidence thresholding to eliminate false positives on non-face objects.
+
+---
+
+## 🛠️ Tech Stack & Architecture
+
+*   **Machine Learning / CV:** PyTorch (CUDA), Hugging Face Transformers, `facenet-pytorch` (for MTCNN), OpenCV, Pillow, NumPy
+*   **Application & UI:** Gradio, JavaScript
+*   **MLOps & Environment:** Python `venv`, Git
+
+**Flow Diagram:**
+`Input (Video/Webcam)` -> `MTCNN (GPU)` -> `Crop Faces` -> `Swin Transformer (GPU)` -> `IOU Tracker & Smoothing` -> `Annotate Frame` -> `Gradio UI`
+
+---
+
+## 👥 Meet the Team
+This project was a collaborative effort by:
+* Alyyan Ahmed - AI & MLOps Engineer
+* Munim Akbar - AI & MLOps Engineer
+## 📜 License
+This project is licensed under the MIT License. See the LICENSE file for details.
