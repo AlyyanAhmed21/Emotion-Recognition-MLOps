@@ -1,21 +1,11 @@
-# Core Machine Learning & Deep Learning (PyTorch-based)
-torch
-torchvision
-torchaudio
+# Core ML (PyTorch-dependent packages are installed manually)
 transformers
-timm
-
-# Computer Vision
-opencv-python
-# --- THIS IS THE FIX ---
-# REMOVE the old TensorFlow-dependent mtcnn
-# ADD the new, pure PyTorch face detector
-facenet-pytorch 
-# --- END FIX ---
-Pillow
+accelerate
 
 # Web Application & User Interface
 gradio==3.50.2
 
-# Utilities
+# Computer Vision & Data Handling
+opencv-python
 numpy
+Pillow
