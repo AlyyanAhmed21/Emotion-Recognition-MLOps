@@ -19,3 +19,8 @@ gradio==3.50.2
 
 # Utilities
 numpy
+
+onnx
+# --- THIS IS THE FIX ---
+# Specify the version for CUDA 11.8. This is the official mapping.
+onnxruntime-gpu==1.16.3

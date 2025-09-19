@@ -3,12 +3,11 @@ import os
 import cv2
 import time
 
-from src.EmotionRecognition.pipeline.hf_predictor import HFPredictor
+from src.EmotionRecognition.pipeline.onnx_predictor import ONNXPredictor
 
-# --- INITIALIZE THE MODEL ---
-print("[INFO] Initializing predictor...")
+print("[INFO] Initializing ONNX predictor...")
 try:
-    predictor = HFPredictor()
+    predictor = ONNXPredictor()
     print("[INFO] Predictor initialized successfully.")
 except Exception as e:
     predictor = None
