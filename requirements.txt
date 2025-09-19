@@ -1,44 +1,21 @@
-# -----------------------------------------------------------
-# MLOps Pipeline & Data Versioning
-# -----------------------------------------------------------
-dvc[s3]               # For data versioning. Change [s3] to your remote type or remove.
-kaggle                # For downloading datasets from Kaggle.
-
-
-# -----------------------------------------------------------
-# Core Machine Learning & Deep Learning
-# -----------------------------------------------------------
-# Using the stable TensorFlow 2.10 for GPU support on native Windows
-tensorflow==2.10.0
-scikit-learn          # For evaluation metrics.
-
-# Hugging Face SOTA Model Dependencies
-transformers          # For loading models and processors from the Hub.
-torch                 # PyTorch is a backend dependency for many HF vision models.
+# Core Machine Learning & Deep Learning (PyTorch-based)
+torch
 torchvision
-timm                  # Another common dependency for HF vision transformers.
+torchaudio
+transformers
+timm
 
 # Computer Vision
-opencv-python         # For image/video processing and drawing.
-mtcnn                 # For fast and effective face detection.
-Pillow                # For basic image manipulation.
+opencv-python
+# --- THIS IS THE FIX ---
+# REMOVE the old TensorFlow-dependent mtcnn
+# ADD the new, pure PyTorch face detector
+facenet-pytorch 
+# --- END FIX ---
+Pillow
 
-
-# -----------------------------------------------------------
 # Web Application & User Interface
-# -----------------------------------------------------------
-gradio==3.50.2        # Locked to a stable version for consistent UI behavior.
+gradio==3.50.2
 
-
-# -----------------------------------------------------------
 # Utilities
-# -----------------------------------------------------------
 numpy
-pandas                # For data manipulation in the preparation stage.
-PyYAML                # For reading .yaml configuration files.
-python-box            # For dot-notation access to config dictionaries.
-tqdm                  # For progress bars in scripts.
-ensure                # For runtime type checking.
-matplotlib            # For plotting (useful in research).
-seaborn               # For advanced plotting (useful in research).
-notebook              # For running Jupyter notebooks.

@@ -2,80 +2,94 @@ from transformers import AutoImageProcessor, AutoModelForImageClassification
 import torch
 import numpy as np
 import cv2
-from mtcnn import MTCNN
 from collections import deque, Counter
 from PIL import Image
+
+# --- THE NEW, PURE PYTORCH FACE DETECTOR ---
+from facenet_pytorch import MTCNN
 
 LOCAL_MODEL_PATH = "sota_model"
 
 class HFPredictor:
-    def __init__(self, smoothing_window=10, confidence_threshold=0.3):
+    def __init__(self, smoothing_window=10, confidence_threshold=0.3, face_confidence_threshold=0.95):
         print(f"[PREDICTOR INFO] Loading model from local path: {LOCAL_MODEL_PATH}...")
         self.processor = AutoImageProcessor.from_pretrained(LOCAL_MODEL_PATH)
         self.model = AutoModelForImageClassification.from_pretrained(LOCAL_MODEL_PATH)
-        self.face_detector = MTCNN()
+        
+        # --- NEW: Initialize the PyTorch MTCNN ---
+        # It automatically detects and uses the GPU if available!
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.face_detector = MTCNN(keep_all=True, device=self.device)
+        self.face_confidence_threshold = face_confidence_threshold
+        # --- END NEW ---
+
         self.classes = list(self.model.config.id2label.values())
         self.confidence_threshold = confidence_threshold
         self.recent_predictions = deque(maxlen=smoothing_window)
         self.stable_prediction = "---"
         print("[PREDICTOR INFO] Predictor initialized successfully.")
+        
+        if self.device == 'cuda':
+            print("[PREDICTOR INFO] CUDA GPU detected. Running in high-performance mode.")
+            self.model.to(self.device)
+        else:
+            print("[PREDICTOR INFO] No CUDA GPU detected. Running on CPU.")
 
     def process_frame(self, frame):
         """
-        Processes a single frame. This function is now used for ALL predictions
-        (live, image, and video) to ensure consistency.
+        Processes a single frame: detects high-confidence faces, predicts emotions, 
+        and draws professional annotations using the PyTorch stack.
         """
         if frame is None: return frame, {}
 
         annotated_frame = frame.copy()
         all_probabilities = {}
 
-        faces = self.face_detector.detect_faces(frame)
-        
-        for face in faces:
-            x, y, width, height = face['box']
-            x, y = max(0, x), max(0, y)
-            face_roi = frame[y:y+height, x:x+width]
-            
-            if face_roi.size > 0:
-                pil_image = Image.fromarray(face_roi)
-                inputs = self.processor(images=pil_image, return_tensors="pt")
-                with torch.no_grad():
-                    logits = self.model(**inputs).logits
-                
-                probs = torch.nn.functional.softmax(logits, dim=-1)
-                predictions = probs[0].numpy()
-                pred_index = np.argmax(predictions)
-                confidence = predictions[pred_index]
+        # The new detector is much faster. It takes a PIL image.
+        pil_frame = Image.fromarray(frame)
+        boxes, probs = self.face_detector.detect(pil_frame)
 
-                # --- THIS IS THE DEFINITIVE FIX ---
-                # For the bounding box text, we determine which label to show.
-                # For the live feed, we want smooth predictions. For static images, we want the direct one.
-                # A simple check on the deque can tell us if we are in a "live" context.
-                if len(self.recent_predictions) > 0:
-                    # If the deque has items, we are in a live stream, so use smoothing.
+        # The detector returns None if no faces are found
+        if boxes is not None:
+            # --- NEW: Process the new detector's output ---
+            for box, prob in zip(boxes, probs):
+                if prob < self.face_confidence_threshold:
+                    continue # Skip low-confidence faces
+
+                x1, y1, x2, y2 = [int(coord) for coord in box]
+                width = x2 - x1
+                height = y2 - y1
+                
+                if width <= 0 or height <= 0: continue
+                
+                face_roi = frame[y1:y2, x1:x2]
+            # --- END NEW ---
+            
+                if face_roi.size > 0:
+                    pil_image = Image.fromarray(face_roi)
+                    inputs = self.processor(images=pil_image, return_tensors="pt").to(self.device)
+
+                    with torch.no_grad():
+                        logits = self.model(**inputs).logits
+                    
+                    predictions = torch.nn.functional.softmax(logits, dim=-1).cpu().numpy()[0]
+                    pred_index = np.argmax(predictions)
+                    confidence = predictions[pred_index]
+
                     if confidence > self.confidence_threshold:
                         self.recent_predictions.append(pred_index)
-                    most_common_pred = Counter(self.recent_predictions).most_common(1)[0][0]
-                    display_emotion = self.classes[most_common_pred]
-                else:
-                    # If the deque is empty, it's a static image/video, so use the direct prediction.
-                    display_emotion = self.classes[pred_index]
-                
-                # Reset the deque for the next live session if this was a static call
-                if len(self.recent_predictions) == 0:
-                    self.recent_predictions.clear()
-
-                text = f"{display_emotion} ({confidence*100:.1f}%)"
-                # --- END FIX ---
-                
-                GREEN = (0, 255, 0); BLACK = (0, 0, 0); FONT = cv2.FONT_HERSHEY_SIMPLEX
-                (text_width, text_height), baseline = cv2.getTextSize(text, FONT, 0.8, 2)
-                
-                cv2.rectangle(annotated_frame, (x, y - text_height - baseline - 10), (x + text_width + 10, y), GREEN, cv2.FILLED)
-                cv2.putText(annotated_frame, text, (x + 5, y - 5), FONT, 0.8, BLACK, 2)
-                cv2.rectangle(annotated_frame, (x, y), (x+width, y+height), GREEN, 3)
-                
-                all_probabilities = {self.classes[i]: float(predictions[i]) for i in range(len(self.classes))}
+                    if self.recent_predictions:
+                        most_common_pred = Counter(self.recent_predictions).most_common(1)[0][0]
+                        self.stable_prediction = self.classes[most_common_pred]
+                    
+                    GREEN = (0, 255, 0); BLACK = (0, 0, 0); FONT = cv2.FONT_HERSHEY_SIMPLEX
+                    text = f"{self.stable_prediction} ({confidence*100:.1f}%)"
+                    (text_width, text_height), baseline = cv2.getTextSize(text, FONT, 0.8, 2)
+                    
+                    cv2.rectangle(annotated_frame, (x1, y1 - text_height - baseline - 10), (x1 + text_width + 10, y1), GREEN, cv2.FILLED)
+                    cv2.putText(annotated_frame, text, (x1 + 5, y1 - 5), FONT, 0.8, BLACK, 2)
+                    cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), GREEN, 3)
+                    
+                    all_probabilities = {self.classes[i]: float(predictions[i]) for i in range(len(self.classes))}
         
         return annotated_frame, all_probabilities

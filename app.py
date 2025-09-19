@@ -41,42 +41,30 @@ body {
     padding: 1rem;
 }
 
-/* Prediction Bar Styling */
-#predictions-column { background-color: transparent !important; padding: 1.5rem; }
+/* Prediction Bar Styling & Layout */
+#predictions-column { background-color: transparent !important; padding: 1.5rem; padding-top: 2.5rem; }
 #predictions-column > .gr-label { display: none; }
-.prediction-list { list-style-type: none; padding: 0; margin-top: 1.5rem; }
+.prediction-list { list-style-type: none; padding: 0; margin-top: 1rem; }
 .prediction-list li { display: flex; align-items: center; margin-bottom: 12px; font-size: 1.1rem; }
 .prediction-list .label { width: 100px; text-transform: capitalize; color: #e0e0e0; }
 .prediction-list .bar-container { flex-grow: 1; height: 24px; background-color: rgba(255,255,255,0.1); border-radius: 12px; margin: 0 15px; overflow: hidden; }
-.prediction-list .bar { height: 100%; background: linear-gradient(90deg, #8A2BE2, #C71585); border-radius: 12px; transition: width: 0.1s linear; }
+.prediction-list .bar { height: 100%; background: linear-gradient(90deg, #8A2BE2, #C71585); border-radius: 12px; transition: width 0.1s linear; }
 .prediction-list .percent { width: 60px; text-align: right; font-weight: bold; color: #FFF; }
 footer { display: none !important; }
 """
 
 ABOUT_MARKDOWN = """
-## 🚀 About This Project
+### Model: Vision Transformer (`PangPang/affectnet-swin-tiny-patch4-window7-224`)
+This application uses a state-of-the-art Vision Transformer model, pre-trained on the massive **AffectNet** dataset. This dataset contains over 400,000 "in the wild" images, allowing the model to generalize well to real-world, spontaneous expressions.
 
-This application is the culmination of a complete, end-to-end MLOps project, demonstrating the full lifecycle from research and experimentation to a final, deployed, state-of-the-art solution.
+### About This Project
+This application is the deployment artifact of a complete MLOps pipeline. The journey involved multiple iterations, including:
+- Training custom CNNs (`MobileNetV2`) on datasets like **CK+** and **FER+**.
+- Architecting a full-stack solution with **React** and **FastAPI**.
+- Implementing a reproducible training pipeline with **DVC**.
+- Automating deployment with a **CI/CD** workflow using **GitHub Actions**.
 
-**💻 [View Project on GitHub](https://github.com/YOUR-USERNAME/Emotion-Recognition-MLOps)** <!--- REPLACE WITH YOUR GITHUB REPO LINK --->
-
----
-
-### Key Technical Features:
-
-*   **State-of-the-Art AI Model:** Utilizes a **Swin Transformer**, a powerful Vision Transformer (ViT) architecture, pre-trained on the massive **AffectNet** dataset. This ensures high accuracy and robust generalization to real-world, "in the wild" facial expressions.
-*   **Reproducible MLOps Pipeline:** The original model training and data processing workflows were built using **DVC (Data Version Control)**, ensuring that every experiment is versioned and reproducible.
-*   **Full-Stack & Deployment:** The application architecture evolved from a Python-only script to a decoupled **FastAPI backend** and a **React frontend**, and was ultimately deployed as this streamlined and robust **Gradio** application.
-*   **Containerized & Automated:** The entire application is packaged with **Docker** and is set up for **CI/CD with GitHub Actions**, enabling automated testing and deployment to cloud platforms like Hugging Face Spaces.
-
----
-
-### 🛠️ Architecture & Tech Stack
-
-*   **Machine Learning & CV:** Python, PyTorch, Hugging Face `transformers`, MTCNN, OpenCV
-*   **MLOps & DevOps:** DVC, GitHub Actions, Docker, Git LFS
-*   **Application & UI:** Gradio
-
+This Gradio app represents the final, streamlined version for a high-performance user experience.
 """
 
 # --- BACKEND LOGIC ---
@@ -98,20 +86,50 @@ def create_prediction_html(probabilities):
     html += "</ul>"
     return html
 
-def unified_prediction_function(frame):
-    """A single, robust function that takes any frame (from webcam or upload) and returns the annotated frame and the prediction HTML."""
-    if frame is None:
+def live_detection_stream(stream_state):
+    """A generator function that runs the live feed loop. This is the definitive fix."""
+    if stream_state != "Start":
+        # This function is called once with "Stop" to terminate the loop.
+        print("[INFO] Stop signal received. Terminating live feed.")
+        yield (None, []), create_prediction_html({}) # Clear the UI
+        return
+
+    cap = cv2.VideoCapture(0)
+    if not cap.isOpened():
+        print("[ERROR] Cannot open webcam")
+        return
+    
+    try:
+        print("[INFO] Webcam started. Starting live prediction loop.")
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                time.sleep(0.01)
+                continue
+            
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            # The predictor now returns raw data (boxes, labels), not a rendered image
+            annotations, probabilities = predictor.get_prediction_data(frame_rgb)
+            
+            # We send the ORIGINAL frame and the annotation data separately.
+            # Gradio's AnnotatedImage will handle the drawing on the frontend.
+            yield (frame_rgb, annotations), create_prediction_html(probabilities)
+    finally:
+        print("[INFO] Live feed loop finished. Releasing webcam.")
+        cap.release()
+
+def process_image(image):
+    """Processes a static uploaded image."""
+    if image is None: 
         return None, create_prediction_html({})
-    
-    # The predictor class handles all annotation and prediction logic
-    annotated_frame, probabilities = predictor.process_frame(frame)
-    
-    return annotated_frame, create_prediction_html(probabilities)
+    # Use the same efficient data-only function
+    annotations, probabilities = predictor.get_prediction_data(image)
+    # Return the original image and the annotation data for AnnotatedImage component
+    return (image, annotations), create_prediction_html(probabilities)
 
 def process_video(video_path, progress=gr.Progress(track_tqdm=True)):
     """Processes an uploaded video file frame-by-frame."""
-    if video_path is None: 
-        return None
+    if video_path is None: return None
     try:
         cap = cv2.VideoCapture(video_path)
         frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -125,7 +143,8 @@ def process_video(video_path, progress=gr.Progress(track_tqdm=True)):
             ret, frame = cap.read()
             if not ret: break
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            annotated_frame, _ = predictor.process_frame(frame_rgb)
+            # Use the full process_frame method that does drawing for video files
+            annotated_frame, _ = predictor.process_frame_for_upload(frame_rgb) 
             if annotated_frame is not None:
                 out.write(cv2.cvtColor(annotated_frame, cv2.COLOR_RGB2BGR))
         cap.release()
@@ -143,24 +162,32 @@ with gr.Blocks(css=CSS, theme=gr.themes.Base()) as demo:
     with gr.Box(elem_id="main-card"):
         with gr.Tabs():
             with gr.TabItem("Live Detection"):
-                with gr.Row(equal_height=False):
+                with gr.Row(equal_height=True):
                     with gr.Column(scale=3):
-                        # The single, correct component for a live webcam feed.
-                        live_feed = gr.Image(source="webcam", streaming=True, type="numpy", label="Live Feed", height=550, mirror_webcam=True)
+                        # Use gr.AnnotatedImage for efficient, frontend-rendered annotations
+                        live_output = gr.AnnotatedImage(label="Live Feed", height=550, mirror_webcam=True)
                     with gr.Column(scale=2, elem_id="predictions-column"):
                         gr.Markdown("### Emotion Probabilities")
                         live_predictions = gr.HTML()
-            
+                with gr.Row():
+                    start_button = gr.Button("Start Webcam", variant="primary", scale=1)
+                    stop_button = gr.Button("Stop Webcam", variant="secondary", scale=1)
+                
+                # Hidden state to robustly control the loop
+                stream_state = gr.State("Stop")
+
             with gr.TabItem("Upload Image"):
-                with gr.Row(equal_height=False):
+                with gr.Row(equal_height=True):
                     with gr.Column(scale=3):
                         image_input = gr.Image(type="numpy", label="Upload an Image", height=550)
+                        image_output = gr.AnnotatedImage(label="Result", height=550)
                     with gr.Column(scale=2, elem_id="predictions-column"):
+                        gr.Markdown("### Emotion Probabilities")
                         image_predictions = gr.HTML()
                 image_button = gr.Button("Analyze Image", variant="primary")
 
             with gr.TabItem("Upload Video"):
-                with gr.Row(equal_height=False):
+                with gr.Row(equal_height=True):
                     video_input = gr.Video(label="Upload a Video File")
                     video_output = gr.Video(label="Processed Video")
                 video_button = gr.Button("Analyze Video", variant="primary")
@@ -169,13 +196,20 @@ with gr.Blocks(css=CSS, theme=gr.themes.Base()) as demo:
                 gr.Markdown(ABOUT_MARKDOWN)
 
     # --- EVENT LISTENERS ---
-    live_feed.stream(fn=unified_prediction_function, inputs=live_feed, outputs=[live_feed, live_predictions])
-    image_button.click(fn=unified_prediction_function, inputs=[image_input], outputs=[image_input, image_predictions])
-    video_button.click(fn=process_video, inputs=[video_input], outputs=[video_output])
+    
+    # This is the definitive, robust way to handle start/stop for a generator in Gradio
+    start_event = start_button.click(lambda: "Start", None, stream_state, queue=False)
+    live_stream = start_event.then(live_detection_stream, stream_state, [live_output, live_predictions])
+    
+    # Stop button's click event cancels the running live_stream event.
+    stop_button.click(fn=None, inputs=None, outputs=None, cancels=[live_stream])
+
+    image_button.click(process_image, [image_input], [image_output, image_predictions])
+    video_button.click(process_video, [video_input], [video_output])
 
 # --- LAUNCH THE APP ---
 if predictor:
-    # Enabling the queue is essential for the video processing progress bar.
+    # Enabling the queue is essential for the 'cancels' and progress bars to work
     demo.queue().launch(debug=True)
 else:
     print("\n[FATAL ERROR] Could not start the application.")
