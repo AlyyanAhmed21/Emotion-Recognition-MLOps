@@ -3,11 +3,10 @@ import os
 import cv2
 import time
 
-# Ensure the correct predictor class is imported
 from src.EmotionRecognition.pipeline.hf_predictor import HFPredictor
 
 # --- CONFIGURATION ---
-HOLD_TIME = 2.0  # (seconds)
+HOLD_TIME = 2.0
 
 # --- INITIALIZE THE MODEL ---
 print("[INFO] Initializing predictor...")
@@ -18,32 +17,71 @@ except Exception as e:
     predictor = None
     print(f"[FATAL ERROR] Failed to initialize predictor: {e}")
 
-# --- UI CONTENT & STYLING ---
+# --- UI CONTENT & STYLING (Complete Overhaul) ---
 CSS = """
-/* Your final, polished CSS */
-.prediction-list .bar {
-    height: 100%;
-    background: linear-gradient(90deg, #8A2BE2, #C71585);
-    border-radius: 12px;
-    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-}
+/* --- 1. Animated Black & Dark Blue Background --- */
 body {
-    background: linear-gradient(-45deg, #0b0f19, #131a2d, #2a2a72, #522a72);
-    background-size: 400% 400%; animation: gradient 15s ease infinite;
+  background: linear-gradient(-45deg, #000000, #0b0f19, #131a2d, #000033);
+  background-size: 400% 400%;
+  animation: gradientBG 15s ease infinite;
 }
-@keyframes gradient { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
-.gradio-container { max-width: 1320px !important; margin: auto !important; }
-#title { text-align: center; font-size: 3rem !important; font-weight: 700; color: #FFF; margin-bottom: 0.5rem; }
-#subtitle { text-align: center; color: #bebebe; margin-top: 0; margin-bottom: 40px; font-size: 1.2rem; font-weight: 300; }
-#main-card { background: rgba(22, 22, 34, 0.65); border-radius: 16px; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.18); padding: 1rem; }
-#predictions-column { background-color: rgba(15, 15, 25, 0.7); backdrop-filter: blur(5px); border-radius: 12px; padding: 1.5rem !important; }
-#predictions-column > .gr-label { display: none; }
-.prediction-list { list-style-type: none; padding: 0; margin-top: 1.5rem; }
+@keyframes gradientBG {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* --- 2. Professional Theming & Layout --- */
+.gradio-container { background: transparent !important; }
+#title, #subtitle { color: #FFF; text-align: center; }
+#title { font-size: 3rem !important; font-weight: 700; margin-bottom: 0.5rem; }
+#subtitle { font-size: 1.2rem; font-weight: 300; margin-bottom: 40px; }
+#main-card {
+    background: rgba(11, 15, 25, 0.7) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 24px !important;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    padding: 2rem !important; /* Fixes text on border issue */
+}
+
+/* --- 3. Interactive, Button-like Tabs --- */
+.tabs > .tab-nav {
+    justify-content: center !important; /* Center aligns the tabs */
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    margin-bottom: 20px;
+}
+.tabs > .tab-nav > button {
+    background: transparent !important;
+    border: none !important;
+    color: #a0aec0 !important;
+    font-size: 1rem !important;
+    font-weight: 600 !important;
+    padding: 10px 20px !important;
+    border-bottom: 2px solid transparent !important;
+    border-radius: 6px 6px 0 0 !important;
+    transition: all 0.3s ease !important;
+}
+.tabs > .tab-nav > button:hover {
+    background: rgba(255, 255, 255, 0.05) !important;
+    color: #fff !important;
+}
+.tabs > .tab-nav > button.selected {
+    color: #fff !important;
+    border-bottom: 2px solid #3b82f6 !important; /* Blue accent for selected tab */
+}
+
+/* --- 4. Prediction Panel & FPS Counter --- */
+#predictions-column { background-color: transparent !important; border: none !important; padding: 1.5rem !important; }
 .prediction-list li { display: flex; align-items: center; margin-bottom: 12px; font-size: 1.1rem; }
-.prediction-list .label { width: 100px; text-transform: capitalize; color: #e0e0e0; }
+.prediction-list .label { width: 100px; text-transform: capitalize; color: #FFF; }
 .prediction-list .bar-container { flex-grow: 1; height: 24px; background-color: rgba(255,255,255,0.1); border-radius: 12px; margin: 0 15px; overflow: hidden; }
+.prediction-list .bar { height: 100%; background: linear-gradient(90deg, #3b82f6, #8b5cf6); border-radius: 12px; transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
 .prediction-list .percent { width: 60px; text-align: right; font-weight: bold; color: #FFF; }
-footer { display: none !important; }
+#fps-counter { text-align: center; font-weight: bold; }
+
+/* --- 5. Hide the unprofessional "Record" button --- */
+.record-button { display: none !important; }
 """
 
 ABOUT_MARKDOWN = """
@@ -51,26 +89,17 @@ ABOUT_MARKDOWN = """
 
 This application demonstrates a complete, end-to-end MLOps workflow, resulting in a high-performance, real-time facial emotion recognition system. It leverages a state-of-the-art AI model and incorporates advanced techniques for a robust and polished user experience.
 
-**[View the Project on GitHub](https://github.com/your-username/your-repo-name)** <!--- IMPORTANT: REPLACE WITH YOUR GITHUB REPO LINK --->
+**[View the Project on GitHub](https://github.com/your-username/your-repo-name)** <!--- REPLACE WITH YOUR GITHUB REPO LINK --->
 
 ---
 
 ### ✨ Key Technical Features
 
-*   **Real-Time GPU Performance:** The entire AI pipeline runs on the GPU with PyTorch (CUDA), enabling high-FPS analysis of the live webcam feed and rapid processing of videos.
+*   **High-FPS Live Performance:** The live feed is optimized by resizing the input frame before processing and using mixed-precision inference (`torch.cuda.amp`) to achieve a smooth, high-FPS experience on GPU.
 
 *   **Advanced Multi-Face Tracking & Stability:** For video analysis, an **IOU (Intersection-over-Union) tracker** maintains the identity of each person, while **temporal smoothing (hysteresis)** prevents distracting label flicker. Bounding boxes are stabilized with an **Exponential Moving Average (EMA)** for a smooth, cinematic feel.
 
 *   **Flicker-Free UI:** The prediction panel is updated using a custom JavaScript listener that animates changes smoothly in the browser, providing a seamless and professional user experience without any jarring flashes.
-
-*   **State-of-the-Art AI Model:** At its core is a **Swin Transformer**, a powerful Vision Transformer architecture, ensuring high accuracy on a wide range of facial expressions.
-
----
-
-### 🛠️ Core Technologies
-
-*   **AI / Computer Vision:** PyTorch, Hugging Face Transformers, `facenet-pytorch`, OpenCV
-*   **Application & UI:** Gradio, JavaScript
 
 ---
 
@@ -82,46 +111,40 @@ This application demonstrates a complete, end-to-end MLOps workflow, resulting i
 
 # --- BACKEND LOGIC ---
 def create_static_html(probabilities):
-    if not probabilities:
-        return "<div style='padding: 2rem; text-align: center; color: #999;'>No face detected.</div>"
+    if not probabilities: return "<div style='padding: 2rem; text-align: center; color: #999;'>No face detected.</div>"
     html = "<ul class='prediction-list'>"
     sorted_preds = sorted(probabilities.items(), key=lambda item: item[1], reverse=True)
     for emotion, prob in sorted_preds:
-        html += f"""
-        <li>
-            <strong class='label'>{emotion.capitalize()}</strong>
-            <div class='bar-container'><div class='bar' style='width: {prob*100:.1f}%;'></div></div>
-            <span class='percent'>{(prob*100):.1f}%</span>
-        </li>"""
+        html += f"""<li><strong class='label'>{emotion.capitalize()}</strong><div class='bar-container'><div class='bar' style='width: {prob*100:.1f}%;'></div></div><span class='percent'>{(prob*100):.1f}%</span></li>"""
     html += "</ul>"
     return html
 
-# --- THIS IS THE FIX for the "Upload Image" tab ---
 def handle_static_image(frame):
     predictor.reset_tracker()
-    # It must call the video_frame predictor to get multi-face results, but also need probabilities
-    # We create a temporary function for this single purpose
     annotated_frame, probabilities = predictor.predict_static_with_probs(frame)
     return annotated_frame, create_static_html(probabilities)
 
 def handle_stream(frame, state):
+    start_time = time.time()
     current_time = time.time()
     if state['last_update'] == 0:
         predictor.reset_tracker()
-    annotated_frame, probabilities = predictor.predict_smoothed(frame)
+    annotated_frame, probabilities = predictor.predict_live_frame(frame)
+    duration = time.time() - start_time
+    fps = 1 / duration if duration > 0 else 0
+    fps_text = f"{fps:.1f} FPS"
     if not probabilities:
-        return annotated_frame, gr.update(), state
+        return annotated_frame, gr.update(), fps_text, state
     current_top_emotion = max(probabilities, key=probabilities.get)
     emotion_changed = current_top_emotion != state['last_emotion']
     hold_time_expired = (current_time - state['last_update']) > HOLD_TIME
     if emotion_changed or hold_time_expired:
         new_state = {'last_emotion': current_top_emotion, 'last_update': current_time}
-        return annotated_frame, probabilities, new_state
+        return annotated_frame, probabilities, fps_text, new_state
     else:
-        return annotated_frame, gr.update(), state
+        return annotated_frame, gr.update(), fps_text, state
 
 def handle_video(video_path, progress=gr.Progress(track_tqdm=True)):
-    if video_path is None: return None
     predictor.reset_tracker()
     try:
         cap = cv2.VideoCapture(video_path)
@@ -151,42 +174,44 @@ with gr.Blocks(css=CSS, theme=gr.themes.Base()) as demo:
     live_feed_state = gr.State({'last_emotion': None, 'last_update': 0})
     FIXED_EMOTION_ORDER = ["happy", "sad", "angry", "surprise", "fear", "disgust", "neutral"]
     
-    gr.Markdown("# Facial Emotion Detector", elem_id="title")
-    gr.Markdown("A real-time AI application powered by Vision Transformers", elem_id="subtitle")
+    with gr.Column():
+        gr.Markdown("# Facial Emotion Detector", elem_id="title")
+        gr.Markdown("A real-time AI application powered by Vision Transformers", elem_id="subtitle")
 
-    with gr.Box(elem_id="main-card"):
-        with gr.Tabs():
-            with gr.TabItem("Live Detection"):
-                with gr.Row(equal_height=False):
-                    with gr.Column(scale=3):
-                        live_feed = gr.Image(source="webcam", streaming=True, type="numpy", label="Live Feed", height=550, mirror_webcam=True)
-                    with gr.Column(scale=2, elem_id="predictions-column"):
-                        gr.Markdown("### Emotion Probabilities")
-                        html_content = "<ul class='prediction-list'>"
-                        for emotion in FIXED_EMOTION_ORDER:
-                            html_content += f"""<li><strong class='label'>{emotion.capitalize()}</strong><div class='bar-container'><div class='bar' id='bar-{emotion}'></div></div><span class='percent' id='percent-{emotion}'>0.0%</span></li>"""
-                        html_content += "</ul>"
-                        live_predictions = gr.HTML(html_content)
-                        live_predictions_data = gr.JSON(visible=False)
+        with gr.Group(elem_id="main-card"):
+            with gr.Tabs():
+                with gr.Tab("Live Detection"):
+                    with gr.Row():
+                        with gr.Column(scale=3):
+                            live_feed = gr.Image(sources=["webcam"], streaming=True, type="numpy", label="Live Feed", height=550)
+                            fps_counter = gr.Textbox(label="Live FPS", interactive=False, elem_id="fps-counter")
+                        with gr.Column(scale=2, elem_id="predictions-column"):
+                            gr.Markdown("### Emotion Probabilities")
+                            html_content = "<ul class='prediction-list'>"
+                            for emotion in FIXED_EMOTION_ORDER:
+                                html_content += f"""<li><strong class='label'>{emotion.capitalize()}</strong><div class='bar-container'><div class='bar' id='bar-{emotion}'></div></div><span class='percent' id='percent-{emotion}'>0.0%</span></li>"""
+                            html_content += "</ul>"
+                            live_predictions = gr.HTML(html_content)
+                            live_predictions_data = gr.JSON(visible=False)
 
-            with gr.TabItem("Upload Image"):
-                with gr.Row(equal_height=False):
-                    with gr.Column(scale=3):
+                with gr.Tab("Upload Image"):
+                    with gr.Row():
                         image_input = gr.Image(type="numpy", label="Upload an Image", height=550)
-                    with gr.Column(scale=2, elem_id="predictions-column"):
                         image_predictions = gr.HTML()
-                image_button = gr.Button("Analyze Image", variant="primary")
+                    image_button = gr.Button("Analyze Image", variant="primary")
 
-            with gr.TabItem("Upload Video"):
-                with gr.Row(equal_height=False):
-                    video_input = gr.Video(label="Upload a Video File")
-                    video_output = gr.Video(label="Processed Video")
-                video_button = gr.Button("Analyze Video", variant="primary")
-            
-            with gr.TabItem("About"):
-                gr.Markdown(ABOUT_MARKDOWN)
+                with gr.Tab("Upload Video"):
+                    with gr.Row():
+                        video_input = gr.Video(label="Upload a Video File")
+                        video_output = gr.Video(label="Processed Video")
+                    video_button = gr.Button("Analyze Video", variant="primary")
+                
+                with gr.Tab("About"):
+                    with gr.Column():
+                        gr.Markdown(ABOUT_MARKDOWN)
 
-    live_predictions_data.change(fn=dummy_function, inputs=live_predictions_data, outputs=None, _js="""
+    # JavaScript listener
+    live_predictions_data.change(fn=dummy_function, inputs=live_predictions_data, outputs=None, js="""
         (data) => {
             if (!data) return;
             const sorted_preds = Object.entries(data).sort(([,a],[,b]) => b-a);
@@ -208,7 +233,8 @@ with gr.Blocks(css=CSS, theme=gr.themes.Base()) as demo:
             }
         }""")
     
-    live_feed.stream(fn=handle_stream, inputs=[live_feed, live_feed_state], outputs=[live_feed, live_predictions_data, live_feed_state])
+    # Event listeners
+    live_feed.stream(fn=handle_stream, inputs=[live_feed, live_feed_state], outputs=[live_feed, live_predictions_data, fps_counter, live_feed_state])
     image_button.click(fn=handle_static_image, inputs=[image_input], outputs=[image_input, image_predictions])
     video_button.click(fn=handle_video, inputs=[video_input], outputs=[video_output])
 

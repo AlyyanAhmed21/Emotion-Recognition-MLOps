@@ -1,11 +1,17 @@
-# Core ML (PyTorch-dependent packages are installed manually)
+# requirements.txt
+
+# --- Foundational Libraries ---
+# Pinned to specific versions to resolve the critical dependency conflicts
+# between facenet-pytorch and opencv-contrib-python.
+numpy==1.26.4
+Pillow==10.2.0
+opencv-contrib-python==4.9.0.80
+
+# --- AI & Core ML Libraries ---
+# IMPORTANT: PyTorch and facenet-pytorch must be installed MANUALLY before this file.
 transformers
 accelerate
 
-# Web Application & User Interface
-gradio==3.50.2
-
-# Computer Vision & Data Handling
-opencv-python
-numpy
-Pillow
+# --- Web Application & UI ---
+# Installs the latest compatible versions of Gradio and its dependencies (like websockets).
+gradio

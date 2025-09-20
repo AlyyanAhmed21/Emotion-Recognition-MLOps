@@ -8,7 +8,6 @@ from PIL import Image
 
 LOCAL_MODEL_PATH = "sota_model"
 
-# --- HELPER FUNCTION for the IOU Tracker ---
 def calculate_iou(boxA, boxB):
     xA = max(boxA[0], boxB[0]); yA = max(boxA[1], boxB[1])
     xB = min(boxA[2], boxB[2]); yB = min(boxA[3], boxB[3])
@@ -28,17 +27,17 @@ class HFPredictor:
         self.model.to(self.device)
         self.model.eval()
 
-        self.face_detector = MTCNN(keep_all=True, device=self.device, thresholds=[0.7, 0.8, 0.95])
+        self.face_detector = MTCNN(keep_all=True, device=self.device)
         self.classes = list(self.model.config.id2label.values())
         
-        # State for multi-face IOU Tracker
+        # State for multi-face IOU Tracker (for video processing)
         self.tracked_faces = {}
         self.next_face_id = 0
         self.smoothing_window = smoothing_window
         self.box_smoothing_factor = box_smoothing_factor
         self.confirmation_frames = confirmation_frames
 
-        # State for single-person live feed smoother
+        # --- THIS IS THE FIX: Restore the missing variables ---
         self.live_feed_smoother = deque(maxlen=smoothing_window)
         self.live_feed_box_smoother = None
 
@@ -74,22 +73,72 @@ class HFPredictor:
         if face_roi.size > 0:
             pil_image = Image.fromarray(face_roi)
             inputs = self.processor(images=pil_image, return_tensors="pt").to(self.device)
-            with torch.no_grad():
-                logits = self.model(**inputs).logits
-            probs = torch.nn.functional.softmax(logits, dim=-1)
+            with torch.cuda.amp.autocast():
+                with torch.no_grad():
+                    logits = self.model(**inputs).logits
+            probs = torch.nn.functional.softmax(logits.float(), dim=-1) # Use .float() for stability
             pred_index = torch.argmax(probs, dim=1).item()
             emotion = self.classes[pred_index]
             all_probs_dict = {self.classes[i]: float(probs[0][i]) for i in range(len(self.classes))}
             return emotion, all_probs_dict
         return None, {}
 
+    def _get_high_confidence_detections(self, frame, conf_threshold=0.95):
+        boxes, probs = self.face_detector.detect(frame)
+        if boxes is None: return []
+        return [box for box, prob in zip(boxes, probs) if prob > conf_threshold]
+
+    # --- THIS IS THE FINAL, HIGH-FPS LIVE PREDICTOR ---
+    def predict_live_frame(self, frame):
+        if frame is None: return frame, {}
+        
+        # --- 1. Resize the frame to a smaller, efficient size (The FPS Fix) ---
+        h, w, _ = frame.shape
+        scale = 640 / w if w > 0 else 1
+        new_h, new_w = int(h * scale), int(w * scale)
+        small_frame = cv2.resize(frame, (new_w, new_h))
+        
+        annotated_frame = small_frame.copy()
+        probabilities = {}
+        
+        # --- 2. Use the simple, robust single-person tracker from before ---
+        boxes_raw, probs = self.face_detector.detect(annotated_frame)
+        
+        high_conf_boxes = []
+        if boxes_raw is not None:
+            for box, prob in zip(boxes_raw, probs):
+                if prob > 0.7:
+                    high_conf_boxes.append(box)
+
+        if high_conf_boxes:
+            detected_box = high_conf_boxes[0]
+            
+            if self.live_feed_box_smoother is None:
+                self.live_feed_box_smoother = detected_box
+            else:
+                self.live_feed_box_smoother = (
+                    self.box_smoothing_factor * detected_box +
+                    (1 - self.box_smoothing_factor) * self.live_feed_box_smoother
+                )
+            
+            emotion, probabilities = self._predict_emotion_for_box(annotated_frame, self.live_feed_box_smoother)
+            
+            if emotion:
+                self.live_feed_smoother.append(emotion)
+            
+            if self.live_feed_smoother:
+                display_emotion = Counter(self.live_feed_smoother).most_common(1)[0][0]
+                annotated_frame = self._draw_annotations(annotated_frame, self.live_feed_box_smoother, display_emotion)
+        else:
+            self.live_feed_box_smoother = None
+            
+        # --- 3. Return the processed small frame ---
+        return annotated_frame, probabilities
+
     def predict_video_frame(self, frame):
-        # This function for stable multi-face video processing is correct.
-        # It remains unchanged from the last working version.
         if frame is None: return frame
         annotated_frame = frame.copy()
-        boxes, probs = self.face_detector.detect(annotated_frame)
-        current_detections = [box for box, prob in zip(boxes, probs) if prob > 0.95] if boxes is not None else []
+        current_detections = self._get_high_confidence_detections(frame, conf_threshold=0.95)
         unmatched_detections = list(range(len(current_detections)))
         for face_id, face_data in self.tracked_faces.items():
             best_match_iou, best_match_idx = 0, -1
@@ -124,25 +173,21 @@ class HFPredictor:
         for face_id, face_data in self.tracked_faces.items():
             annotated_frame = self._draw_annotations(annotated_frame, face_data['box'], face_data['stable_emotion'])
         return annotated_frame
-    
+
     def predict_static_with_probs(self, frame):
-        # This function for the Upload Image tab is correct.
         if frame is None: return frame, {}
         annotated_frame = frame.copy()
-        boxes, probs = self.face_detector.detect(annotated_frame)
+        current_detections = self._get_high_confidence_detections(frame, conf_threshold=0.95)
         probabilities = {}
-        if boxes is not None:
-            for box, prob in zip(boxes, probs):
-                if prob > 0.95:
-                    emotion, current_probs = self._predict_emotion_for_box(annotated_frame, box)
-                    if emotion:
-                        annotated_frame = self._draw_annotations(annotated_frame, box, emotion)
-                        probabilities = current_probs
+        if current_detections:
+            for box in current_detections:
+                emotion, current_probs = self._predict_emotion_for_box(annotated_frame, box)
+                if emotion:
+                    annotated_frame = self._draw_annotations(annotated_frame, box, emotion)
+                    probabilities = current_probs
             return annotated_frame, probabilities
-        # Error handling for no face found
         h, w, _ = annotated_frame.shape
-        error_text = "No face detected!"
-        font = cv2.FONT_HERSHEY_DUPLEX; font_scale = 1.0; thickness = 2
+        error_text = "No face detected!"; font = cv2.FONT_HERSHEY_DUPLEX; font_scale = 1.0; thickness = 2
         (text_width, text_height), baseline = cv2.getTextSize(error_text, font, font_scale, thickness)
         text_x = (w - text_width) // 2; text_y = (h + text_height) // 2
         overlay = annotated_frame.copy()
@@ -150,51 +195,3 @@ class HFPredictor:
         cv2.addWeighted(overlay, 0.6, annotated_frame, 0.4, 0, annotated_frame)
         cv2.putText(annotated_frame, error_text, (text_x, text_y), font, font_scale, (0, 0, 255), thickness, cv2.LINE_AA)
         return annotated_frame, {}
-        
-    # --- THIS IS THE FINAL, REWRITTEN AND CORRECTED LIVE FEED FUNCTION ---
-    def predict_smoothed(self, frame):
-        if frame is None:
-            return None, {}
-            
-        annotated_frame = frame.copy()
-        probabilities = {}
-        
-        boxes_raw, probs = self.face_detector.detect(annotated_frame)
-        
-        # Filter for high-confidence detections
-        high_conf_boxes = []
-        if boxes_raw is not None:
-            for box, prob in zip(boxes_raw, probs):
-                if prob > 0.95:
-                    high_conf_boxes.append(box)
-
-        if high_conf_boxes:
-            # If we see a face, process it
-            detected_box = high_conf_boxes[0]
-            
-            # Smooth the box position
-            if self.live_feed_box_smoother is None:
-                self.live_feed_box_smoother = detected_box
-            else:
-                self.live_feed_box_smoother = (
-                    self.box_smoothing_factor * detected_box +
-                    (1 - self.box_smoothing_factor) * self.live_feed_box_smoother
-                )
-            
-            # Get the emotion prediction from the smoothed box
-            emotion, probabilities = self._predict_emotion_for_box(annotated_frame, self.live_feed_box_smoother)
-            
-            # Add current emotion to history for label smoothing
-            if emotion:
-                self.live_feed_smoother.append(emotion)
-            
-            # Get the most stable emotion from recent history
-            if self.live_feed_smoother:
-                display_emotion = Counter(self.live_feed_smoother).most_common(1)[0][0]
-                # Unconditionally draw the box with the stable emotion
-                annotated_frame = self._draw_annotations(annotated_frame, self.live_feed_box_smoother, display_emotion)
-        else:
-            # If no face is detected in the frame, reset the smoother so the box disappears
-            self.live_feed_box_smoother = None
-
-        return annotated_frame, probabilities
